@@ -386,6 +386,7 @@
         using var db = await DbFactory.CreateDbContextAsync();
         db.EnvironmentVariables.Update(v);
         await db.SaveChangesAsync();
+        State.NotifyChanged();
     }
 
     private async Task OnVarValueChanged(EnvironmentVariable v, ChangeEventArgs e)
@@ -394,6 +395,7 @@
         using var db = await DbFactory.CreateDbContextAsync();
         db.EnvironmentVariables.Update(v);
         await db.SaveChangesAsync();
+        State.NotifyChanged();
     }
 
     private async Task ToggleSecret(EnvironmentVariable v)
@@ -403,11 +405,13 @@
         using var db = await DbFactory.CreateDbContextAsync();
         db.EnvironmentVariables.Update(v);
         await db.SaveChangesAsync();
+        State.NotifyChanged();
     }
 
     private void ToggleReveal(EnvironmentVariable v)
     {
         if (!_revealed.Add(v.Id)) _revealed.Remove(v.Id);
+        StateHasChanged();
     }
 
     private void ToggleCollVarEditor(int collectionId)
@@ -468,6 +472,7 @@
     private void ToggleCollVarReveal(CollectionVariable v)
     {
         if (!_collVarRevealed.Add(v.Id)) _collVarRevealed.Remove(v.Id);
+        StateHasChanged();
     }
 
     private ValueTask<bool> Confirm(string message)
