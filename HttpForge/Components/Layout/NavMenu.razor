@@ -88,11 +88,11 @@
                 <button class="icon-btn" title="New request" @onclick="() => AddRequest(c)">+</button>
                 <button class="icon-btn" title="Delete collection" @onclick="() => DeleteCollection(c)">🗑</button>
             </div>
-            @if (_collVarEditorOpen.Contains(c.Id) && _collVars.TryGetValue(c.Id, out var cvars))
+            @if (_collVarEditorOpen.Contains(c.Id))
             {
                 <div class="env-editor">
                     <div class="var-list">
-                        @foreach (var v in cvars)
+                        @foreach (var v in c.Variables)
                         {
                             var masked = v.IsSecret && !_collVarRevealed.Contains(v.Id);
                             <div class="var-row">
@@ -154,7 +154,6 @@
     private string _newEnvName = string.Empty;
     private HashSet<int> _revealed = new();
     private HashSet<int> _collVarEditorOpen = new();
-    private Dictionary<int, List<CollectionVariable>> _collVars = new();
     private HashSet<int> _collVarRevealed = new();
 
     protected override async Task OnInitializedAsync()
@@ -170,7 +169,14 @@
 
     private async void OnStateChanged()
     {
-        await ReloadAsync();
+        try
+        {
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[HttpForge] NavMenu reload error: {ex.Message}");
+        }
         await InvokeAsync(StateHasChanged);
     }
 
@@ -189,7 +195,6 @@
         _selectedEnv = State.SelectedEnvironmentId is int id
             ? _environments.FirstOrDefault(e => e.Id == id)
             : null;
-        _collVars = _collections.ToDictionary(c => c.Id, c => c.Variables);
     }
 
     private void ToggleCollection(int id)
@@ -279,6 +284,7 @@
             .Include(x => x.Headers)
             .Include(x => x.QueryParams)
             .Include(x => x.FormFields)
+            .Include(x => x.Variables)
             .AsNoTracking()
             .FirstAsync(x => x.Id == r.Id);
 
@@ -302,6 +308,10 @@
             FormFields = source.FormFields.Select(f => new FormFieldItem
             {
                 Key = f.Key, Value = f.Value, Enabled = f.Enabled
+            }).ToList(),
+            Variables = source.Variables.Select(v => new RequestVariable
+            {
+                Key = v.Key, Value = v.Value, IsSecret = v.IsSecret
             }).ToList()
         };
 
@@ -427,7 +437,6 @@
         db.CollectionVariables.Add(v);
         await db.SaveChangesAsync();
         await ReloadAsync();
-        State.NotifyChanged();
     }
 
     private async Task RemoveCollVar(CollectionVariable v, int collectionId)
@@ -438,7 +447,6 @@
         db.CollectionVariables.Remove(await db.CollectionVariables.FirstAsync(x => x.Id == v.Id));
         await db.SaveChangesAsync();
         await ReloadAsync();
-        State.NotifyChanged();
     }
 
     private async Task OnCollVarKeyChanged(CollectionVariable v, ChangeEventArgs e)
