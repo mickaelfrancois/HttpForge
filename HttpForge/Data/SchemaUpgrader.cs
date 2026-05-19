@@ -53,7 +53,6 @@ public static class SchemaUpgrader
             if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
                 return;
         }
-        reader.Close();
 
         using var alter = conn.CreateCommand();
         alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {definition};";
