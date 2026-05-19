@@ -1,0 +1,20 @@
+.theme-toggle-btn {
+    position: fixed;
+    top: 0.6rem;
+    right: 0.75rem;
+    z-index: 500;
+    background: var(--bg-btn-hover);
+    color: var(--text-muted);
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    transition: background 0.15s, color 0.15s;
+}
+
+.theme-toggle-btn:hover {
+    background: var(--border-input);
+    color: var(--text-primary);
+}

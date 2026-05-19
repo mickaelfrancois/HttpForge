@@ -1,0 +1,25 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<button class="theme-toggle-btn" @onclick="Cycle" title="@Label">@Icon</button>
+
+@code {
+    enum ThemeMode { System, Light, Dark }
+    ThemeMode _mode = ThemeMode.System;
+
+    string Icon => _mode switch { ThemeMode.Light => "☀", ThemeMode.Dark => "☾", _ => "◑" };
+    string Label => _mode switch { ThemeMode.Light => "Light", ThemeMode.Dark => "Dark", _ => "System" };
+
+    protected override async Task OnAfterRenderAsync(bool first) {
+        if (!first) return;
+        var saved = await JS.InvokeAsync<string?>("forge.theme.get");
+        _mode = saved switch { "light" => ThemeMode.Light, "dark" => ThemeMode.Dark, _ => ThemeMode.System };
+        StateHasChanged();
+    }
+
+    async Task Cycle() {
+        _mode = _mode switch { ThemeMode.System => ThemeMode.Light, ThemeMode.Light => ThemeMode.Dark, _ => ThemeMode.System };
+        var val = _mode switch { ThemeMode.Light => "light", ThemeMode.Dark => "dark", _ => "system" };
+        await JS.InvokeVoidAsync("forge.theme.set", val);
+    }
+}

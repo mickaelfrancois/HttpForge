@@ -48,3 +48,16 @@ window.forge.setOpen = (el, open) => {
     if (!el) return;
     el._forgeOpen = !!open;
 };
+
+window.forge.theme = {
+    get: () => localStorage.getItem('forge-theme') || 'system',
+    set: (mode) => {
+        if (mode === 'light' || mode === 'dark') {
+            localStorage.setItem('forge-theme', mode);
+            document.documentElement.setAttribute('data-theme', mode);
+        } else {
+            localStorage.removeItem('forge-theme');
+            document.documentElement.removeAttribute('data-theme');
+        }
+    }
+};

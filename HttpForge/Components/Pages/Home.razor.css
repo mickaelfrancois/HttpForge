@@ -4,11 +4,11 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #888;
+    color: var(--text-muted);
 }
 
 .empty-state h2 {
-    color: #ffb454;
+    color: var(--accent-orange);
     margin-bottom: 0.5rem;
 }
 
@@ -26,7 +26,7 @@
 .request-name-input {
     background: transparent;
     border: none;
-    color: #ddd;
+    color: var(--text-primary);
     font-size: 0.95rem;
     font-weight: 600;
     padding: 0.3rem 0;
@@ -37,20 +37,20 @@
 .request-name-input:focus,
 .request-name-input:hover {
     outline: none;
-    border-bottom-color: #444;
+    border-bottom-color: var(--border-input);
 }
 
 .url-bar {
     display: flex;
     gap: 0.4rem;
     padding: 0.5rem 1rem;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-main);
 }
 
 .method-select {
-    background: #1e1e1e;
-    border: 1px solid #444;
-    color: #e0e0e0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
     border-radius: 3px;
     padding: 0.45rem 0.5rem;
     font-weight: 700;
@@ -58,11 +58,11 @@
     min-width: 6rem;
 }
 
-.method-select.method-get { color: #4ec9b0; }
-.method-select.method-post { color: #dcdcaa; }
-.method-select.method-put { color: #569cd6; }
-.method-select.method-patch { color: #c586c0; }
-.method-select.method-delete { color: #f48771; }
+.method-select.method-get { color: var(--method-get); }
+.method-select.method-post { color: var(--method-post); }
+.method-select.method-put { color: var(--method-put); }
+.method-select.method-patch { color: var(--method-patch); }
+.method-select.method-delete { color: var(--method-delete); }
 
 .url-bar ::deep .vi-wrap {
     flex: 1;
@@ -70,9 +70,9 @@
 }
 
 .url-bar ::deep .url-input {
-    background: #1e1e1e;
-    border: 1px solid #444;
-    color: #e0e0e0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
     border-radius: 3px;
     padding: 0.45rem 0.6rem;
     font-size: 0.9rem;
@@ -81,11 +81,11 @@
 
 .url-bar ::deep .url-input:focus {
     outline: none;
-    border-color: #0e639c;
+    border-color: var(--accent-blue);
 }
 
 .send-btn {
-    background: #0e639c;
+    background: var(--accent-blue);
     color: #fff;
     border: none;
     border-radius: 3px;
@@ -95,7 +95,7 @@
 }
 
 .send-btn:hover:not(:disabled) {
-    background: #1177bb;
+    background: var(--accent-blue-hover);
 }
 
 .send-btn:disabled {
@@ -105,14 +105,14 @@
 
 .tabs {
     display: flex;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-main);
     padding: 0 1rem;
 }
 
 .tab {
     background: none;
     border: none;
-    color: #888;
+    color: var(--text-muted);
     cursor: pointer;
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
@@ -120,12 +120,12 @@
 }
 
 .tab:hover {
-    color: #ccc;
+    color: var(--text-dim);
 }
 
 .tab.active {
-    color: #fff;
-    border-bottom-color: #0e639c;
+    color: var(--text-brand);
+    border-bottom-color: var(--accent-blue);
 }
 
 .tab-body {
@@ -144,7 +144,7 @@
     display: flex;
     gap: 0.75rem;
     padding-bottom: 0.4rem;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-main);
 }
 
 .radio {
@@ -153,13 +153,13 @@
     gap: 0.3rem;
     cursor: pointer;
     font-size: 0.85rem;
-    color: #ccc;
+    color: var(--text-dim);
 }
 
 .body-editor ::deep .body-textarea {
-    background: #1e1e1e;
-    border: 1px solid #333;
-    color: #e0e0e0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-main);
+    color: var(--text-primary);
     border-radius: 3px;
     padding: 0.5rem;
     font-family: 'Consolas', monospace;
@@ -170,13 +170,13 @@
 
 .body-editor ::deep .body-textarea:focus {
     outline: none;
-    border-color: #0e639c;
+    border-color: var(--accent-blue);
 }
 
 .response-pane {
     flex: 1;
-    border-top: 1px solid #333;
-    background: #1a1a1a;
+    border-top: 1px solid var(--border-main);
+    background: var(--bg-surface);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -184,14 +184,14 @@
 
 .response-empty {
     padding: 1rem;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
 }
 
 .response-error {
     padding: 1rem;
-    color: #f48771;
-    background: #2a1818;
+    color: var(--error-text);
+    background: var(--error-bg);
 }
 
 .response-meta {
@@ -199,9 +199,9 @@
     align-items: center;
     gap: 1rem;
     padding: 0.5rem 1rem;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-main);
     font-size: 0.85rem;
-    color: #aaa;
+    color: var(--text-dim);
 }
 
 .status {
@@ -210,11 +210,11 @@
     border-radius: 3px;
 }
 
-.status-2xx { color: #4ec9b0; background: #1e3a30; }
-.status-3xx { color: #569cd6; background: #1e2e3a; }
-.status-4xx { color: #dcdcaa; background: #3a3520; }
-.status-5xx { color: #f48771; background: #3a1e1e; }
-.status-0xx { color: #888; background: #2a2a2a; }
+.status-2xx { color: var(--status-2xx-text); background: var(--status-2xx-bg); }
+.status-3xx { color: var(--status-3xx-text); background: var(--status-3xx-bg); }
+.status-4xx { color: var(--status-4xx-text); background: var(--status-4xx-bg); }
+.status-5xx { color: var(--status-5xx-text); background: var(--status-5xx-bg); }
+.status-0xx { color: var(--status-0xx-text); background: var(--status-0xx-bg); }
 
 .response-body {
     flex: 1;
@@ -223,7 +223,7 @@
 }
 
 .response-body pre {
-    color: #d4d4d4;
+    color: var(--text-code);
     font-family: 'Consolas', monospace;
     font-size: 0.82rem;
     margin: 0;
@@ -239,7 +239,7 @@
 
 .header-table th {
     text-align: left;
-    color: #569cd6;
+    color: var(--header-key-color);
     padding: 0.2rem 0.5rem 0.2rem 0;
     vertical-align: top;
     width: 12rem;
@@ -247,14 +247,14 @@
 }
 
 .header-table td {
-    color: #d4d4d4;
+    color: var(--text-code);
     padding: 0.2rem 0;
     word-break: break-all;
     font-family: 'Consolas', monospace;
 }
 
 .empty-hint {
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     font-size: 0.85rem;
 }
