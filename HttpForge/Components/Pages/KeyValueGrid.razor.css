@@ -1,0 +1,68 @@
+.kv-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.kv-header,
+.kv-row {
+    display: grid;
+    grid-template-columns: 2rem 1fr 1.5fr 2rem;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.kv-header {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: #888;
+    padding: 0 0.2rem 0.25rem;
+    border-bottom: 1px solid #333;
+}
+
+.kv-row input[type="text"],
+.kv-row input:not([type]) {
+    background: #1e1e1e;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    border-radius: 3px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+    min-width: 0;
+}
+
+.kv-row input:focus {
+    outline: none;
+    border-color: #0e639c;
+}
+
+.row-del {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.2rem;
+    border-radius: 3px;
+}
+
+.row-del:hover {
+    background: #3a3a3a;
+    color: #f48771;
+}
+
+.add-row {
+    margin-top: 0.4rem;
+    background: none;
+    border: 1px dashed #444;
+    color: #888;
+    cursor: pointer;
+    padding: 0.35rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.add-row:hover {
+    color: #fff;
+    border-color: #569cd6;
+}

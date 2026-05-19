@@ -1,0 +1,293 @@
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject AppState State
+@implements IDisposable
+
+<div class="brand">
+    <span class="brand-mark">⚡</span>
+    <span class="brand-name">HttpForge</span>
+</div>
+
+<div class="env-block">
+    <label>Environment</label>
+    <div class="env-row">
+        <select value="@(State.SelectedEnvironmentId?.ToString() ?? "")" @onchange="OnEnvChanged">
+            <option value="">— none —</option>
+            @foreach (var e in _environments)
+            {
+                <option value="@e.Id">@e.Name</option>
+            }
+        </select>
+        <button class="icon-btn" title="Manage environments" @onclick="ToggleEnvEditor">@(_showEnvEditor ? "✕" : "⚙")</button>
+    </div>
+    @if (_showEnvEditor)
+    {
+        <div class="env-editor">
+            <div class="env-actions">
+                <input placeholder="New environment name" @bind="_newEnvName" @bind:event="oninput" />
+                <button @onclick="AddEnvironment" disabled="@string.IsNullOrWhiteSpace(_newEnvName)">Add</button>
+            </div>
+            @if (_selectedEnv is not null)
+            {
+                <div class="var-list">
+                    <div class="var-list-header">
+                        <span>@_selectedEnv.Name — variables</span>
+                        <button class="link-btn" @onclick="DeleteSelectedEnv">delete env</button>
+                    </div>
+                    @foreach (var v in _selectedEnv.Variables)
+                    {
+                        <div class="var-row">
+                            <input placeholder="key" value="@v.Key" @oninput="e => OnVarKeyChanged(v, e)" />
+                            <input placeholder="value" value="@v.Value" @oninput="e => OnVarValueChanged(v, e)" />
+                            <button class="icon-btn" @onclick="() => RemoveVar(v)">✕</button>
+                        </div>
+                    }
+                    <button class="link-btn" @onclick="AddVar">+ add variable</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<div class="section-title">
+    <span>Collections</span>
+    <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
+</div>
+
+@if (_showAddCollection)
+{
+    <div class="inline-add">
+        <input placeholder="Collection name" @bind="_newCollectionName" @bind:event="oninput" @onkeyup="OnNewCollectionKey" />
+        <button @onclick="AddCollection" disabled="@string.IsNullOrWhiteSpace(_newCollectionName)">Add</button>
+        <button class="link-btn" @onclick="() => _showAddCollection = false">cancel</button>
+    </div>
+}
+
+<div class="collection-tree">
+    @foreach (var c in _collections)
+    {
+        <div class="collection-node">
+            <div class="collection-header">
+                <button class="collection-toggle" @onclick="() => ToggleCollection(c.Id)">
+                    <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
+                    <span>@c.Name</span>
+                </button>
+                <button class="icon-btn" title="New request" @onclick="() => AddRequest(c)">+</button>
+                <button class="icon-btn" title="Delete collection" @onclick="() => DeleteCollection(c)">🗑</button>
+            </div>
+            @if (_expanded.Contains(c.Id))
+            {
+                <div class="request-list">
+                    @foreach (var r in c.Requests.OrderByDescending(r => r.UpdatedAt))
+                    {
+                        <div class="request-row @(State.SelectedRequestId == r.Id ? "selected" : "")"
+                             @onclick="() => SelectRequest(r.Id)">
+                            <span class="method method-@r.Method.ToString().ToLower()">@r.Method</span>
+                            <span class="request-name">@(string.IsNullOrWhiteSpace(r.Name) ? "Untitled" : r.Name)</span>
+                            <button class="icon-btn" title="Delete request" @onclick:stopPropagation @onclick="() => DeleteRequest(r)">✕</button>
+                        </div>
+                    }
+                    @if (c.Requests.Count == 0)
+                    {
+                        <div class="empty-hint">No requests — click + to add.</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    @if (_collections.Count == 0)
+    {
+        <div class="empty-hint">No collections yet.</div>
+    }
+</div>
+
+@code {
+    private List<Collection> _collections = new();
+    private List<AppEnvironment> _environments = new();
+    private AppEnvironment? _selectedEnv;
+    private HashSet<int> _expanded = new();
+    private bool _showAddCollection;
+    private string _newCollectionName = string.Empty;
+    private bool _showEnvEditor;
+    private string _newEnvName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += OnStateChanged;
+        await ReloadAsync();
+    }
+
+    public void Dispose()
+    {
+        State.OnChange -= OnStateChanged;
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task ReloadAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        _collections = await db.Collections
+            .Include(c => c.Requests)
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+        _environments = await db.Environments
+            .Include(e => e.Variables)
+            .OrderBy(e => e.Name)
+            .ToListAsync();
+        _selectedEnv = State.SelectedEnvironmentId is int id
+            ? _environments.FirstOrDefault(e => e.Id == id)
+            : null;
+    }
+
+    private void ToggleCollection(int id)
+    {
+        if (!_expanded.Add(id)) _expanded.Remove(id);
+    }
+
+    private void StartAddCollection()
+    {
+        _showAddCollection = true;
+        _newCollectionName = string.Empty;
+    }
+
+    private async Task OnNewCollectionKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddCollection();
+        else if (e.Key == "Escape") _showAddCollection = false;
+    }
+
+    private async Task AddCollection()
+    {
+        if (string.IsNullOrWhiteSpace(_newCollectionName)) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        var c = new Collection { Name = _newCollectionName.Trim() };
+        db.Collections.Add(c);
+        await db.SaveChangesAsync();
+        _expanded.Add(c.Id);
+        _newCollectionName = string.Empty;
+        _showAddCollection = false;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteCollection(Collection c)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.Collections.Remove(await db.Collections.FirstAsync(x => x.Id == c.Id));
+        await db.SaveChangesAsync();
+        if (c.Requests.Any(r => r.Id == State.SelectedRequestId))
+        {
+            State.SelectedRequestId = null;
+            State.NotifyChanged();
+        }
+        await ReloadAsync();
+    }
+
+    private async Task AddRequest(Collection c)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var r = new HttpRequestItem
+        {
+            CollectionId = c.Id,
+            Name = "New request",
+            Method = HttpMethodKind.GET,
+            Url = "https://"
+        };
+        db.Requests.Add(r);
+        await db.SaveChangesAsync();
+        _expanded.Add(c.Id);
+        State.SelectedRequestId = r.Id;
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteRequest(HttpRequestItem r)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.Requests.Remove(await db.Requests.FirstAsync(x => x.Id == r.Id));
+        await db.SaveChangesAsync();
+        if (State.SelectedRequestId == r.Id)
+        {
+            State.SelectedRequestId = null;
+            State.NotifyChanged();
+        }
+        await ReloadAsync();
+    }
+
+    private void SelectRequest(int id)
+    {
+        State.SelectedRequestId = id;
+        State.NotifyChanged();
+    }
+
+    private async Task OnEnvChanged(ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        State.SelectedEnvironmentId = int.TryParse(v, out var id) ? id : null;
+        _selectedEnv = State.SelectedEnvironmentId is int sid
+            ? _environments.FirstOrDefault(env => env.Id == sid)
+            : null;
+        State.NotifyChanged();
+        await Task.CompletedTask;
+    }
+
+    private void ToggleEnvEditor() => _showEnvEditor = !_showEnvEditor;
+
+    private async Task AddEnvironment()
+    {
+        if (string.IsNullOrWhiteSpace(_newEnvName)) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        var env = new AppEnvironment { Name = _newEnvName.Trim() };
+        db.Environments.Add(env);
+        await db.SaveChangesAsync();
+        _newEnvName = string.Empty;
+        State.SelectedEnvironmentId = env.Id;
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteSelectedEnv()
+    {
+        if (_selectedEnv is null) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == _selectedEnv.Id));
+        await db.SaveChangesAsync();
+        State.SelectedEnvironmentId = null;
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task AddVar()
+    {
+        if (_selectedEnv is null) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        var v = new EnvironmentVariable { AppEnvironmentId = _selectedEnv.Id, Key = "", Value = "" };
+        db.EnvironmentVariables.Add(v);
+        await db.SaveChangesAsync();
+        await ReloadAsync();
+    }
+
+    private async Task RemoveVar(EnvironmentVariable v)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Remove(await db.EnvironmentVariables.FirstAsync(x => x.Id == v.Id));
+        await db.SaveChangesAsync();
+        await ReloadAsync();
+    }
+
+    private async Task OnVarKeyChanged(EnvironmentVariable v, ChangeEventArgs e)
+    {
+        v.Key = e.Value?.ToString() ?? "";
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Update(v);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task OnVarValueChanged(EnvironmentVariable v, ChangeEventArgs e)
+    {
+        v.Value = e.Value?.ToString() ?? "";
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Update(v);
+        await db.SaveChangesAsync();
+    }
+}

@@ -1,0 +1,52 @@
+@rendermode InteractiveServer
+
+<div class="kv-grid">
+    <div class="kv-header">
+        <span></span>
+        <span>Key</span>
+        <span>Value</span>
+        <span></span>
+    </div>
+    @foreach (var item in Items)
+    {
+        <div class="kv-row">
+            <input type="checkbox" checked="@EnabledOf(item!)" @onchange="@(e => OnEnabledChanged(item!, e))" />
+            <input placeholder="key" value="@KeyOf(item!)" @oninput="@(e => OnKeyInput(item!, e))" @onblur="@(() => OnChanged.InvokeAsync(item!))" />
+            <input placeholder="value" value="@ValueOf(item!)" @oninput="@(e => OnValueInput(item!, e))" @onblur="@(() => OnChanged.InvokeAsync(item!))" />
+            <button class="row-del" @onclick="@(() => OnRemove.InvokeAsync(item!))">✕</button>
+        </div>
+    }
+    <button class="add-row" @onclick="AddRow">+ add row</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required System.Collections.IList Items { get; set; }
+    [Parameter, EditorRequired] public required Func<object> ItemCreator { get; set; }
+    [Parameter, EditorRequired] public required Func<object, string> KeyOf { get; set; }
+    [Parameter, EditorRequired] public required Func<object, string> ValueOf { get; set; }
+    [Parameter, EditorRequired] public required Func<object, bool> EnabledOf { get; set; }
+    [Parameter, EditorRequired] public required Action<object, string> SetKey { get; set; }
+    [Parameter, EditorRequired] public required Action<object, string> SetValue { get; set; }
+    [Parameter, EditorRequired] public required Action<object, bool> SetEnabled { get; set; }
+    [Parameter] public EventCallback<object> OnChanged { get; set; }
+    [Parameter] public EventCallback<object> OnRemove { get; set; }
+
+    private async Task AddRow()
+    {
+        var item = ItemCreator();
+        Items.Add(item);
+        await OnChanged.InvokeAsync(item);
+    }
+
+    private void OnKeyInput(object item, ChangeEventArgs e)
+        => SetKey(item, e.Value?.ToString() ?? string.Empty);
+
+    private void OnValueInput(object item, ChangeEventArgs e)
+        => SetValue(item, e.Value?.ToString() ?? string.Empty);
+
+    private async Task OnEnabledChanged(object item, ChangeEventArgs e)
+    {
+        SetEnabled(item, e.Value is bool b && b);
+        await OnChanged.InvokeAsync(item);
+    }
+}

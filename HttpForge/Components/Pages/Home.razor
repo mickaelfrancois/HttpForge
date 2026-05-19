@@ -1,0 +1,363 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject AppState State
+@inject RequestExecutor Executor
+@implements IDisposable
+
+<PageTitle>HttpForge</PageTitle>
+
+@if (_request is null)
+{
+    <div class="empty-state">
+        <h2>HttpForge</h2>
+        <p>Select or create a request from the sidebar to get started.</p>
+    </div>
+}
+else
+{
+    <div class="editor">
+        <div class="request-name-row">
+            <input class="request-name-input" value="@_request.Name"
+                   @oninput="OnNameInput" @onblur="SaveRequestDebounced" placeholder="Request name" />
+        </div>
+        <div class="url-bar">
+            <select class="method-select method-@_request.Method.ToString().ToLower()"
+                    @onchange="OnMethodChanged">
+                @foreach (var m in Enum.GetValues<HttpMethodKind>())
+                {
+                    <option value="@m" selected="@(_request.Method == m)">@m</option>
+                }
+            </select>
+            <input class="url-input" placeholder="https://api.example.com/path"
+                   value="@_request.Url" @oninput="OnUrlInput" @onblur="SaveRequestDebounced" />
+            <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
+                @(_sending ? "Sending…" : "Send")
+            </button>
+        </div>
+
+        <div class="tabs">
+            @foreach (var t in _tabs)
+            {
+                <button class="tab @(t == _activeTab ? "active" : "")" @onclick="() => _activeTab = t">@t</button>
+            }
+        </div>
+
+        <div class="tab-body">
+            @switch (_activeTab)
+            {
+                case "Params":
+                    <KeyValueGrid Items="_request.QueryParams"
+                                  ItemCreator="@(() => new QueryParamItem { HttpRequestItemId = _request.Id })"
+                                  KeyOf="@(i => ((QueryParamItem)i).Key)"
+                                  ValueOf="@(i => ((QueryParamItem)i).Value)"
+                                  EnabledOf="@(i => ((QueryParamItem)i).Enabled)"
+                                  SetKey="@((i, v) => ((QueryParamItem)i).Key = v)"
+                                  SetValue="@((i, v) => ((QueryParamItem)i).Value = v)"
+                                  SetEnabled="@((i, v) => ((QueryParamItem)i).Enabled = v)"
+                                  OnChanged="SaveQueryParamAsync"
+                                  OnRemove="RemoveQueryParamAsync" />
+                    break;
+                case "Headers":
+                    <KeyValueGrid Items="_request.Headers"
+                                  ItemCreator="@(() => new HeaderItem { HttpRequestItemId = _request.Id })"
+                                  KeyOf="@(i => ((HeaderItem)i).Key)"
+                                  ValueOf="@(i => ((HeaderItem)i).Value)"
+                                  EnabledOf="@(i => ((HeaderItem)i).Enabled)"
+                                  SetKey="@((i, v) => ((HeaderItem)i).Key = v)"
+                                  SetValue="@((i, v) => ((HeaderItem)i).Value = v)"
+                                  SetEnabled="@((i, v) => ((HeaderItem)i).Enabled = v)"
+                                  OnChanged="SaveHeaderAsync"
+                                  OnRemove="RemoveHeaderAsync" />
+                    break;
+                case "Body":
+                    <div class="body-editor">
+                        <div class="body-kind-row">
+                            @foreach (var bk in Enum.GetValues<BodyKind>())
+                            {
+                                <label class="radio">
+                                    <input type="radio" name="bodykind"
+                                           checked="@(_request.BodyKind == bk)"
+                                           @onchange="@(_ => OnBodyKindChanged(bk))" />
+                                    @bk
+                                </label>
+                            }
+                        </div>
+                        @if (_request.BodyKind == BodyKind.Json || _request.BodyKind == BodyKind.Raw)
+                        {
+                            <textarea class="body-textarea"
+                                      placeholder="@(_request.BodyKind == BodyKind.Json ? "{ \"key\": \"value\" }" : "raw body")"
+                                      value="@_request.BodyContent"
+                                      @oninput="OnBodyInput"
+                                      @onblur="SaveRequestDebounced" spellcheck="false"></textarea>
+                        }
+                        else if (_request.BodyKind == BodyKind.FormUrlEncoded)
+                        {
+                            <KeyValueGrid Items="_request.FormFields"
+                                          ItemCreator="@(() => new FormFieldItem { HttpRequestItemId = _request.Id })"
+                                          KeyOf="@(i => ((FormFieldItem)i).Key)"
+                                          ValueOf="@(i => ((FormFieldItem)i).Value)"
+                                          EnabledOf="@(i => ((FormFieldItem)i).Enabled)"
+                                          SetKey="@((i, v) => ((FormFieldItem)i).Key = v)"
+                                          SetValue="@((i, v) => ((FormFieldItem)i).Value = v)"
+                                          SetEnabled="@((i, v) => ((FormFieldItem)i).Enabled = v)"
+                                          OnChanged="SaveFormFieldAsync"
+                                          OnRemove="RemoveFormFieldAsync" />
+                        }
+                        else
+                        {
+                            <div class="empty-hint">No body will be sent.</div>
+                        }
+                    </div>
+                    break;
+            }
+        </div>
+
+        <div class="response-pane">
+            @if (_result is null)
+            {
+                <div class="response-empty">No response yet. Click <b>Send</b>.</div>
+            }
+            else if (_result.Error is not null)
+            {
+                <div class="response-error">
+                    <strong>Error:</strong> @_result.Error
+                </div>
+            }
+            else
+            {
+                <div class="response-meta">
+                    <span class="status status-@StatusClass(_result.StatusCode)">@_result.StatusCode @_result.ReasonPhrase</span>
+                    <span>⏱ @_result.ElapsedMs ms</span>
+                    <span>📦 @_result.BodyBytes B</span>
+                    <button class="tab @(_responseTab == "Body" ? "active" : "")" @onclick="@(() => _responseTab = "Body")">Body</button>
+                    <button class="tab @(_responseTab == "Headers" ? "active" : "")" @onclick="@(() => _responseTab = "Headers")">Headers (@_result.Headers.Count)</button>
+                </div>
+                <div class="response-body">
+                    @if (_responseTab == "Body")
+                    {
+                        <pre>@FormatBody(_result.Body)</pre>
+                    }
+                    else
+                    {
+                        <table class="header-table">
+                            @foreach (var h in _result.Headers.OrderBy(h => h.Key))
+                            {
+                                <tr><th>@h.Key</th><td>@h.Value</td></tr>
+                            }
+                        </table>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private HttpRequestItem? _request;
+    private ExecutionResult? _result;
+    private bool _sending;
+    private string _activeTab = "Params";
+    private string _responseTab = "Body";
+    private readonly string[] _tabs = ["Params", "Headers", "Body"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += OnStateChanged;
+        await LoadRequestAsync();
+    }
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+
+    private async void OnStateChanged()
+    {
+        await LoadRequestAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadRequestAsync()
+    {
+        if (State.SelectedRequestId is null)
+        {
+            _request = null;
+            _result = null;
+            return;
+        }
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        _request = await db.Requests
+            .Include(r => r.Headers)
+            .Include(r => r.QueryParams)
+            .Include(r => r.FormFields)
+            .FirstOrDefaultAsync(r => r.Id == State.SelectedRequestId);
+    }
+
+    private void OnNameInput(ChangeEventArgs e)
+    {
+        if (_request is null) return;
+        _request.Name = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task OnMethodChanged(ChangeEventArgs e)
+    {
+        if (_request is null) return;
+        if (Enum.TryParse<HttpMethodKind>(e.Value?.ToString(), out var m))
+        {
+            _request.Method = m;
+            await SaveRequestDebounced();
+        }
+    }
+
+    private void OnUrlInput(ChangeEventArgs e)
+    {
+        if (_request is null) return;
+        _request.Url = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnBodyInput(ChangeEventArgs e)
+    {
+        if (_request is null) return;
+        _request.BodyContent = e.Value?.ToString();
+    }
+
+    private async Task OnBodyKindChanged(BodyKind kind)
+    {
+        if (_request is null) return;
+        _request.BodyKind = kind;
+        await SaveRequestDebounced();
+    }
+
+    private async Task SaveRequestDebounced()
+    {
+        if (_request is null) return;
+        _request.UpdatedAt = DateTime.UtcNow;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.Requests.Update(_request);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task SaveHeaderAsync(object item)
+    {
+        var h = (HeaderItem)item;
+        using var db = await DbFactory.CreateDbContextAsync();
+        if (h.Id == 0)
+            db.Headers.Add(h);
+        else
+            db.Headers.Update(h);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task RemoveHeaderAsync(object item)
+    {
+        var h = (HeaderItem)item;
+        if (h.Id == 0)
+        {
+            _request?.Headers.Remove(h);
+            return;
+        }
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.Headers.Remove(await db.Headers.FirstAsync(x => x.Id == h.Id));
+        await db.SaveChangesAsync();
+        _request?.Headers.Remove(h);
+    }
+
+    private async Task SaveQueryParamAsync(object item)
+    {
+        var p = (QueryParamItem)item;
+        using var db = await DbFactory.CreateDbContextAsync();
+        if (p.Id == 0)
+            db.QueryParams.Add(p);
+        else
+            db.QueryParams.Update(p);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task RemoveQueryParamAsync(object item)
+    {
+        var p = (QueryParamItem)item;
+        if (p.Id == 0)
+        {
+            _request?.QueryParams.Remove(p);
+            return;
+        }
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.QueryParams.Remove(await db.QueryParams.FirstAsync(x => x.Id == p.Id));
+        await db.SaveChangesAsync();
+        _request?.QueryParams.Remove(p);
+    }
+
+    private async Task SaveFormFieldAsync(object item)
+    {
+        var f = (FormFieldItem)item;
+        using var db = await DbFactory.CreateDbContextAsync();
+        if (f.Id == 0)
+            db.FormFields.Add(f);
+        else
+            db.FormFields.Update(f);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task RemoveFormFieldAsync(object item)
+    {
+        var f = (FormFieldItem)item;
+        if (f.Id == 0)
+        {
+            _request?.FormFields.Remove(f);
+            return;
+        }
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.FormFields.Remove(await db.FormFields.FirstAsync(x => x.Id == f.Id));
+        await db.SaveChangesAsync();
+        _request?.FormFields.Remove(f);
+    }
+
+    private async Task SendAsync()
+    {
+        if (_request is null) return;
+        await SaveRequestDebounced();
+
+        _sending = true;
+        _result = null;
+        StateHasChanged();
+
+        Dictionary<string, string> vars = new(StringComparer.OrdinalIgnoreCase);
+        if (State.SelectedEnvironmentId is int envId)
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+            var env = await db.Environments
+                .Include(e => e.Variables)
+                .FirstOrDefaultAsync(e => e.Id == envId);
+            vars = State.BuildVariables(env);
+        }
+
+        _result = await Executor.ExecuteAsync(_request, vars);
+        _sending = false;
+    }
+
+    private static string StatusClass(int code) => code switch
+    {
+        >= 200 and < 300 => "2xx",
+        >= 300 and < 400 => "3xx",
+        >= 400 and < 500 => "4xx",
+        >= 500 => "5xx",
+        _ => "0xx"
+    };
+
+    private static string FormatBody(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return string.Empty;
+        var trimmed = body.TrimStart();
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                return System.Text.Json.JsonSerializer.Serialize(doc.RootElement,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            }
+            catch { }
+        }
+        return body;
+    }
+}

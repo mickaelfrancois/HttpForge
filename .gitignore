@@ -1,0 +1,29 @@
+## .NET build artifacts
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+## IDE / editor
+.vs/
+.vscode/
+.idea/
+*.swp
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Claude
+.claude/
