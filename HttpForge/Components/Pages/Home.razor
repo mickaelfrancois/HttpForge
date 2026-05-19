@@ -199,9 +199,17 @@ else
 
     private async void OnStateChanged()
     {
-        await LoadEnvAsync();
-        await LoadRequestAsync();
-        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await LoadEnvAsync();
+            await LoadRequestAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[HttpForge] State change error: {ex.Message}");
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadEnvAsync()
@@ -229,6 +237,8 @@ else
             RebuildVariables();
             return;
         }
+
+        _result = null;
 
         using var db = await DbFactory.CreateDbContextAsync();
         _request = await db.Requests

@@ -16,10 +16,10 @@
     left: 0;
     right: 0;
     z-index: 50;
-    background: #252526;
-    border: 1px solid #444;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-input);
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     max-height: 220px;
     overflow-y: auto;
     margin-top: 2px;
@@ -33,7 +33,7 @@
     padding: 0.35rem 0.6rem;
     cursor: pointer;
     font-size: 0.8rem;
-    border-bottom: 1px solid #2c2c2c;
+    border-bottom: 1px solid var(--border-main);
 }
 
 .vi-item:last-child {
@@ -42,16 +42,16 @@
 
 .vi-item:hover,
 .vi-item.selected {
-    background: #094771;
+    background: var(--bg-active);
 }
 
 .vi-key {
-    color: #ffb454;
+    color: var(--accent-orange);
     font-family: 'Consolas', monospace;
 }
 
 .vi-val {
-    color: #888;
+    color: var(--text-muted);
     font-family: 'Consolas', monospace;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -69,17 +69,52 @@
     flex-shrink: 0;
 }
 
+/* Badge colors — light theme defaults (matches :root in theme.css) */
 .vi-source-global {
+    background: #cce0f5;
+    color: #0070c1;
+}
+
+.vi-source-collection {
+    background: #f5ead6;
+    color: #c27900;
+}
+
+.vi-source-request {
+    background: #d6f0e8;
+    color: #0f7b6c;
+}
+
+/* Badge colors — dark theme (explicit dark attribute) */
+html[data-theme="dark"] .vi-source-global {
     background: #1a3a5c;
     color: #5aacf0;
 }
 
-.vi-source-collection {
+html[data-theme="dark"] .vi-source-collection {
     background: #3d2600;
     color: #f0a050;
 }
 
-.vi-source-request {
+html[data-theme="dark"] .vi-source-request {
     background: #0d3320;
     color: #4ecb8d;
+}
+
+/* Badge colors — dark theme (system preference, no explicit attribute) */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .vi-source-global {
+        background: #1a3a5c;
+        color: #5aacf0;
+    }
+
+    :root:not([data-theme]) .vi-source-collection {
+        background: #3d2600;
+        color: #f0a050;
+    }
+
+    :root:not([data-theme]) .vi-source-request {
+        background: #0d3320;
+        color: #4ecb8d;
+    }
 }

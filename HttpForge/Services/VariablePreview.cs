@@ -15,7 +15,7 @@ public static partial class VariablePreview
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var lines = new List<string>();
-        foreach (System.Text.RegularExpressions.Match m in matches)
+        foreach (Match m in matches)
         {
             var key = m.Groups[1].Value;
             if (!seen.Add(key)) continue;
