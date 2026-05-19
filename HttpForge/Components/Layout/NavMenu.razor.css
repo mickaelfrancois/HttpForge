@@ -224,6 +224,10 @@
     color: #fff;
 }
 
+.icon-btn.active {
+    color: #ffb454;
+}
+
 .link-btn {
     background: none;
     border: none;

@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="brand">
@@ -36,9 +37,19 @@
                     </div>
                     @foreach (var v in _selectedEnv.Variables)
                     {
+                        var masked = v.IsSecret && !_revealed.Contains(v.Id);
                         <div class="var-row">
                             <input placeholder="key" value="@v.Key" @oninput="e => OnVarKeyChanged(v, e)" />
-                            <input placeholder="value" value="@v.Value" @oninput="e => OnVarValueChanged(v, e)" />
+                            <input placeholder="value" type="@(masked ? "password" : "text")"
+                                   value="@v.Value" @oninput="e => OnVarValueChanged(v, e)" />
+                            @if (v.IsSecret)
+                            {
+                                <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
+                                        @onclick="() => ToggleReveal(v)">@(masked ? "👁" : "🚫")</button>
+                            }
+                            <button class="icon-btn @(v.IsSecret ? "active" : "")"
+                                    title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
+                                    @onclick="() => ToggleSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
                             <button class="icon-btn" @onclick="() => RemoveVar(v)">✕</button>
                         </div>
                     }
@@ -84,6 +95,7 @@
                              @onclick="() => SelectRequest(r.Id)">
                             <span class="method method-@r.Method.ToString().ToLower()">@r.Method</span>
                             <span class="request-name">@(string.IsNullOrWhiteSpace(r.Name) ? "Untitled" : r.Name)</span>
+                            <button class="icon-btn" title="Duplicate request" @onclick:stopPropagation @onclick="() => DuplicateRequest(r)">⎘</button>
                             <button class="icon-btn" title="Delete request" @onclick:stopPropagation @onclick="() => DeleteRequest(r)">✕</button>
                         </div>
                     }
@@ -110,6 +122,7 @@
     private string _newCollectionName = string.Empty;
     private bool _showEnvEditor;
     private string _newEnvName = string.Empty;
+    private HashSet<int> _revealed = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -122,7 +135,11 @@
         State.OnChange -= OnStateChanged;
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private async void OnStateChanged()
+    {
+        await ReloadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
 
     private async Task ReloadAsync()
     {
@@ -172,6 +189,10 @@
 
     private async Task DeleteCollection(Collection c)
     {
+        var msg = c.Requests.Count > 0
+            ? $"Delete collection \"{c.Name}\" and its {c.Requests.Count} request(s)?"
+            : $"Delete collection \"{c.Name}\"?";
+        if (!await Confirm(msg)) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Collections.Remove(await db.Collections.FirstAsync(x => x.Id == c.Id));
         await db.SaveChangesAsync();
@@ -203,6 +224,8 @@
 
     private async Task DeleteRequest(HttpRequestItem r)
     {
+        var label = string.IsNullOrWhiteSpace(r.Name) ? "Untitled" : r.Name;
+        if (!await Confirm($"Delete request \"{label}\"?")) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Requests.Remove(await db.Requests.FirstAsync(x => x.Id == r.Id));
         await db.SaveChangesAsync();
@@ -211,6 +234,47 @@
             State.SelectedRequestId = null;
             State.NotifyChanged();
         }
+        await ReloadAsync();
+    }
+
+    private async Task DuplicateRequest(HttpRequestItem r)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var source = await db.Requests
+            .Include(x => x.Headers)
+            .Include(x => x.QueryParams)
+            .Include(x => x.FormFields)
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == r.Id);
+
+        var copy = new HttpRequestItem
+        {
+            CollectionId = source.CollectionId,
+            Name = source.Name + " (copy)",
+            Method = source.Method,
+            Url = source.Url,
+            BodyKind = source.BodyKind,
+            BodyContent = source.BodyContent,
+            UpdatedAt = DateTime.UtcNow,
+            Headers = source.Headers.Select(h => new HeaderItem
+            {
+                Key = h.Key, Value = h.Value, Enabled = h.Enabled
+            }).ToList(),
+            QueryParams = source.QueryParams.Select(p => new QueryParamItem
+            {
+                Key = p.Key, Value = p.Value, Enabled = p.Enabled
+            }).ToList(),
+            FormFields = source.FormFields.Select(f => new FormFieldItem
+            {
+                Key = f.Key, Value = f.Value, Enabled = f.Enabled
+            }).ToList()
+        };
+
+        db.Requests.Add(copy);
+        await db.SaveChangesAsync();
+        _expanded.Add(copy.CollectionId);
+        State.SelectedRequestId = copy.Id;
+        State.NotifyChanged();
         await ReloadAsync();
     }
 
@@ -249,6 +313,10 @@
     private async Task DeleteSelectedEnv()
     {
         if (_selectedEnv is null) return;
+        var msg = _selectedEnv.Variables.Count > 0
+            ? $"Delete environment \"{_selectedEnv.Name}\" and its {_selectedEnv.Variables.Count} variable(s)?"
+            : $"Delete environment \"{_selectedEnv.Name}\"?";
+        if (!await Confirm(msg)) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == _selectedEnv.Id));
         await db.SaveChangesAsync();
@@ -269,6 +337,8 @@
 
     private async Task RemoveVar(EnvironmentVariable v)
     {
+        var label = string.IsNullOrWhiteSpace(v.Key) ? "(empty)" : v.Key;
+        if (!await Confirm($"Delete variable \"{label}\"?")) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.EnvironmentVariables.Remove(await db.EnvironmentVariables.FirstAsync(x => x.Id == v.Id));
         await db.SaveChangesAsync();
@@ -290,4 +360,21 @@
         db.EnvironmentVariables.Update(v);
         await db.SaveChangesAsync();
     }
+
+    private async Task ToggleSecret(EnvironmentVariable v)
+    {
+        v.IsSecret = !v.IsSecret;
+        if (!v.IsSecret) _revealed.Remove(v.Id);
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Update(v);
+        await db.SaveChangesAsync();
+    }
+
+    private void ToggleReveal(EnvironmentVariable v)
+    {
+        if (!_revealed.Add(v.Id)) _revealed.Remove(v.Id);
+    }
+
+    private ValueTask<bool> Confirm(string message)
+        => JS.InvokeAsync<bool>("confirm", message);
 }
