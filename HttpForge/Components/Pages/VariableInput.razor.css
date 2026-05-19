@@ -1,0 +1,60 @@
+.vi-wrap {
+    position: relative;
+    display: block;
+    min-width: 0;
+}
+
+    .vi-wrap > input,
+    .vi-wrap > textarea {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+.vi-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: #252526;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 2px;
+}
+
+.vi-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    border-bottom: 1px solid #2c2c2c;
+}
+
+.vi-item:last-child {
+    border-bottom: none;
+}
+
+.vi-item:hover,
+.vi-item.selected {
+    background: #094771;
+}
+
+.vi-key {
+    color: #ffb454;
+    font-family: 'Consolas', monospace;
+}
+
+.vi-val {
+    color: #888;
+    font-family: 'Consolas', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+}

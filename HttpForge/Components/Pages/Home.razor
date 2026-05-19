@@ -29,8 +29,13 @@ else
                     <option value="@m" selected="@(_request.Method == m)">@m</option>
                 }
             </select>
-            <input class="url-input" placeholder="https://api.example.com/path"
-                   value="@_request.Url" @oninput="OnUrlInput" @onblur="SaveRequestDebounced" />
+            <VariableInput Value="@_request.Url"
+                           ValueChanged="OnUrlChanged"
+                           OnBlur="SaveRequestDebounced"
+                           CssClass="url-input"
+                           Placeholder="https://api.example.com/path"
+                           Title="@Tooltip(_request.Url)"
+                           EnvVariables="_envVariables" />
             <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
                 @(_sending ? "Sending…" : "Send")
             </button>
@@ -56,7 +61,8 @@ else
                                   SetValue="@((i, v) => ((QueryParamItem)i).Value = v)"
                                   SetEnabled="@((i, v) => ((QueryParamItem)i).Enabled = v)"
                                   OnChanged="SaveQueryParamAsync"
-                                  OnRemove="RemoveQueryParamAsync" />
+                                  OnRemove="RemoveQueryParamAsync"
+                                  EnvVariables="_envVariables" />
                     break;
                 case "Headers":
                     <KeyValueGrid Items="_request.Headers"
@@ -68,7 +74,8 @@ else
                                   SetValue="@((i, v) => ((HeaderItem)i).Value = v)"
                                   SetEnabled="@((i, v) => ((HeaderItem)i).Enabled = v)"
                                   OnChanged="SaveHeaderAsync"
-                                  OnRemove="RemoveHeaderAsync" />
+                                  OnRemove="RemoveHeaderAsync"
+                                  EnvVariables="_envVariables" />
                     break;
                 case "Body":
                     <div class="body-editor">
@@ -85,11 +92,14 @@ else
                         </div>
                         @if (_request.BodyKind == BodyKind.Json || _request.BodyKind == BodyKind.Raw)
                         {
-                            <textarea class="body-textarea"
-                                      placeholder="@(_request.BodyKind == BodyKind.Json ? "{ \"key\": \"value\" }" : "raw body")"
-                                      value="@_request.BodyContent"
-                                      @oninput="OnBodyInput"
-                                      @onblur="SaveRequestDebounced" spellcheck="false"></textarea>
+                            <VariableInput Value="@_request.BodyContent"
+                                           ValueChanged="OnBodyChanged"
+                                           OnBlur="SaveRequestDebounced"
+                                           Multiline="true"
+                                           CssClass="body-textarea"
+                                           Placeholder="@(_request.BodyKind == BodyKind.Json ? "{ \"key\": \"value\" }" : "raw body")"
+                                           Title="@Tooltip(_request.BodyContent)"
+                                           EnvVariables="_envVariables" />
                         }
                         else if (_request.BodyKind == BodyKind.FormUrlEncoded)
                         {
@@ -102,7 +112,8 @@ else
                                           SetValue="@((i, v) => ((FormFieldItem)i).Value = v)"
                                           SetEnabled="@((i, v) => ((FormFieldItem)i).Enabled = v)"
                                           OnChanged="SaveFormFieldAsync"
-                                          OnRemove="RemoveFormFieldAsync" />
+                                          OnRemove="RemoveFormFieldAsync"
+                                          EnvVariables="_envVariables" />
                         }
                         else
                         {
@@ -160,10 +171,12 @@ else
     private string _activeTab = "Params";
     private string _responseTab = "Body";
     private readonly string[] _tabs = ["Params", "Headers", "Body"];
+    private List<EnvironmentVariable> _envVariables = new();
 
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
+        await LoadEnvAsync();
         await LoadRequestAsync();
     }
 
@@ -171,8 +184,22 @@ else
 
     private async void OnStateChanged()
     {
+        await LoadEnvAsync();
         await LoadRequestAsync();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadEnvAsync()
+    {
+        if (State.SelectedEnvironmentId is null)
+        {
+            _envVariables = new();
+            return;
+        }
+        using var db = await DbFactory.CreateDbContextAsync();
+        _envVariables = await db.EnvironmentVariables
+            .Where(v => v.AppEnvironmentId == State.SelectedEnvironmentId)
+            .ToListAsync();
     }
 
     private async Task LoadRequestAsync()
@@ -192,6 +219,8 @@ else
             .FirstOrDefaultAsync(r => r.Id == State.SelectedRequestId);
     }
 
+    private string Tooltip(string? text) => VariablePreview.Build(text, _envVariables);
+
     private void OnNameInput(ChangeEventArgs e)
     {
         if (_request is null) return;
@@ -208,16 +237,16 @@ else
         }
     }
 
-    private void OnUrlInput(ChangeEventArgs e)
+    private void OnUrlChanged(string value)
     {
         if (_request is null) return;
-        _request.Url = e.Value?.ToString() ?? string.Empty;
+        _request.Url = value;
     }
 
-    private void OnBodyInput(ChangeEventArgs e)
+    private void OnBodyChanged(string value)
     {
         if (_request is null) return;
-        _request.BodyContent = e.Value?.ToString();
+        _request.BodyContent = value;
     }
 
     private async Task OnBodyKindChanged(BodyKind kind)

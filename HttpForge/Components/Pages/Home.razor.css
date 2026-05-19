@@ -64,8 +64,12 @@
 .method-select.method-patch { color: #c586c0; }
 .method-select.method-delete { color: #f48771; }
 
-.url-input {
+.url-bar ::deep .vi-wrap {
     flex: 1;
+    min-width: 0;
+}
+
+.url-bar ::deep .url-input {
     background: #1e1e1e;
     border: 1px solid #444;
     color: #e0e0e0;
@@ -75,7 +79,7 @@
     font-family: 'Consolas', monospace;
 }
 
-.url-input:focus {
+.url-bar ::deep .url-input:focus {
     outline: none;
     border-color: #0e639c;
 }
@@ -152,7 +156,7 @@
     color: #ccc;
 }
 
-.body-textarea {
+.body-editor ::deep .body-textarea {
     background: #1e1e1e;
     border: 1px solid #333;
     color: #e0e0e0;
@@ -164,7 +168,7 @@
     resize: vertical;
 }
 
-.body-textarea:focus {
+.body-editor ::deep .body-textarea:focus {
     outline: none;
     border-color: #0e639c;
 }

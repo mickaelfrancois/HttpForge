@@ -11,8 +11,18 @@
     {
         <div class="kv-row">
             <input type="checkbox" checked="@EnabledOf(item!)" @onchange="@(e => OnEnabledChanged(item!, e))" />
-            <input placeholder="key" value="@KeyOf(item!)" @oninput="@(e => OnKeyInput(item!, e))" @onblur="@(() => OnChanged.InvokeAsync(item!))" />
-            <input placeholder="value" value="@ValueOf(item!)" @oninput="@(e => OnValueInput(item!, e))" @onblur="@(() => OnChanged.InvokeAsync(item!))" />
+            <VariableInput Value="@KeyOf(item!)"
+                           ValueChanged="@(v => OnKeyChanged(item!, v))"
+                           OnBlur="@(() => OnChanged.InvokeAsync(item!))"
+                           Placeholder="key"
+                           Title="@VariablePreview.Build(KeyOf(item!), EnvVariables)"
+                           EnvVariables="EnvVariables" />
+            <VariableInput Value="@ValueOf(item!)"
+                           ValueChanged="@(v => OnValueChanged(item!, v))"
+                           OnBlur="@(() => OnChanged.InvokeAsync(item!))"
+                           Placeholder="value"
+                           Title="@VariablePreview.Build(ValueOf(item!), EnvVariables)"
+                           EnvVariables="EnvVariables" />
             <button class="row-del" @onclick="@(() => OnRemove.InvokeAsync(item!))">✕</button>
         </div>
     }
@@ -30,6 +40,7 @@
     [Parameter, EditorRequired] public required Action<object, bool> SetEnabled { get; set; }
     [Parameter] public EventCallback<object> OnChanged { get; set; }
     [Parameter] public EventCallback<object> OnRemove { get; set; }
+    [Parameter] public IReadOnlyList<EnvironmentVariable> EnvVariables { get; set; } = Array.Empty<EnvironmentVariable>();
 
     private async Task AddRow()
     {
@@ -38,11 +49,9 @@
         await OnChanged.InvokeAsync(item);
     }
 
-    private void OnKeyInput(object item, ChangeEventArgs e)
-        => SetKey(item, e.Value?.ToString() ?? string.Empty);
+    private void OnKeyChanged(object item, string value) => SetKey(item, value);
 
-    private void OnValueInput(object item, ChangeEventArgs e)
-        => SetValue(item, e.Value?.ToString() ?? string.Empty);
+    private void OnValueChanged(object item, string value) => SetValue(item, value);
 
     private async Task OnEnabledChanged(object item, ChangeEventArgs e)
     {

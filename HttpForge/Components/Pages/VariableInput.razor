@@ -1,0 +1,165 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="vi-wrap">
+    @if (Multiline)
+    {
+        <textarea @ref="_ref" class="@CssClass" placeholder="@Placeholder" title="@Title" spellcheck="false"
+                  value="@Value"
+                  @oninput="OnInput"
+                  @onblur="OnBlurInternal"></textarea>
+    }
+    else
+    {
+        <input @ref="_ref" class="@CssClass" placeholder="@Placeholder" title="@Title"
+               value="@Value"
+               @oninput="OnInput"
+               @onblur="OnBlurInternal" />
+    }
+    @if (_open && _matches.Count > 0)
+    {
+        <div class="vi-dropdown">
+            @for (var i = 0; i < _matches.Count; i++)
+            {
+                var idx = i;
+                var v = _matches[idx];
+                <div class="vi-item @(idx == _selectedIndex ? "selected" : "")"
+                     @onmousedown:preventDefault @onclick="() => PickAsync(v)">
+                    <span class="vi-key">@v.Key</span>
+                    <span class="vi-val">@(v.IsSecret ? "(secret)" : v.Value)</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public bool Multiline { get; set; }
+    [Parameter] public IReadOnlyList<EnvironmentVariable> EnvVariables { get; set; } = Array.Empty<EnvironmentVariable>();
+    [Parameter] public EventCallback OnBlur { get; set; }
+
+    private ElementReference _ref;
+    private bool _open;
+    private int _triggerIndex = -1;
+    private int _selectedIndex;
+    private List<EnvironmentVariable> _matches = new();
+    private int? _pendingCaret;
+    private DotNetObjectReference<VariableInput>? _selfRef;
+    private bool _jsAttached;
+    private bool _lastOpenState;
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        Value = e.Value?.ToString() ?? string.Empty;
+        Detect();
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private void Detect()
+    {
+        _open = false;
+        _matches = new();
+        _triggerIndex = -1;
+        _selectedIndex = 0;
+        if (string.IsNullOrEmpty(Value)) return;
+
+        var idx = Value.LastIndexOf("{{", StringComparison.Ordinal);
+        if (idx < 0) return;
+        var after = Value.Substring(idx + 2);
+        if (after.Contains("}}")) return;
+
+        foreach (var c in after)
+        {
+            if (!(char.IsLetterOrDigit(c) || c is '_' or '-' or '.'))
+                return;
+        }
+
+        _triggerIndex = idx;
+        _matches = EnvVariables
+            .Where(v => v.Key.StartsWith(after, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(v => v.Key)
+            .Take(10)
+            .ToList();
+        _open = _matches.Count > 0;
+    }
+
+    private async Task PickAsync(EnvironmentVariable v)
+    {
+        if (_triggerIndex < 0 || string.IsNullOrEmpty(Value)) { _open = false; return; }
+        var insertion = "{{" + v.Key + "}}";
+        Value = Value.Substring(0, _triggerIndex) + insertion;
+        _pendingCaret = _triggerIndex + insertion.Length;
+        _open = false;
+        _matches = new();
+        _triggerIndex = -1;
+        _selectedIndex = 0;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task OnBlurInternal()
+    {
+        _open = false;
+        await OnBlur.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnNavigate(int delta)
+    {
+        if (_matches.Count == 0) return;
+        _selectedIndex = (_selectedIndex + delta + _matches.Count) % _matches.Count;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnSelectCurrent()
+    {
+        if (_matches.Count == 0) return;
+        var idx = Math.Clamp(_selectedIndex, 0, _matches.Count - 1);
+        await InvokeAsync(() => PickAsync(_matches[idx]));
+    }
+
+    [JSInvokable]
+    public async Task OnEscape()
+    {
+        _open = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("forge.attach", _ref, _selfRef);
+            _jsAttached = true;
+        }
+
+        if (_jsAttached && _open != _lastOpenState)
+        {
+            _lastOpenState = _open;
+            await JS.InvokeVoidAsync("forge.setOpen", _ref, _open);
+        }
+
+        if (_pendingCaret is int pos)
+        {
+            _pendingCaret = null;
+            await JS.InvokeVoidAsync("forge.setCaret", _ref, pos);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsAttached)
+        {
+            try { await JS.InvokeVoidAsync("forge.detach", _ref); }
+            catch { /* circuit may already be torn down */ }
+        }
+        _selfRef?.Dispose();
+    }
+}
