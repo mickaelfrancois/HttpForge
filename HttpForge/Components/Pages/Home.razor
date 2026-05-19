@@ -35,7 +35,7 @@ else
                            CssClass="url-input"
                            Placeholder="https://api.example.com/path"
                            Title="@Tooltip(_request.Url)"
-                           EnvVariables="_envVariables" />
+                           EnvVariables="_resolvedVariables" />
             <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
                 @(_sending ? "Sending…" : "Send")
             </button>
@@ -62,7 +62,7 @@ else
                                   SetEnabled="@((i, v) => ((QueryParamItem)i).Enabled = v)"
                                   OnChanged="SaveQueryParamAsync"
                                   OnRemove="RemoveQueryParamAsync"
-                                  EnvVariables="_envVariables" />
+                                  EnvVariables="_resolvedVariables" />
                     break;
                 case "Headers":
                     <KeyValueGrid Items="_request.Headers"
@@ -75,7 +75,7 @@ else
                                   SetEnabled="@((i, v) => ((HeaderItem)i).Enabled = v)"
                                   OnChanged="SaveHeaderAsync"
                                   OnRemove="RemoveHeaderAsync"
-                                  EnvVariables="_envVariables" />
+                                  EnvVariables="_resolvedVariables" />
                     break;
                 case "Body":
                     <div class="body-editor">
@@ -99,7 +99,7 @@ else
                                            CssClass="body-textarea"
                                            Placeholder="@(_request.BodyKind == BodyKind.Json ? "{ \"key\": \"value\" }" : "raw body")"
                                            Title="@Tooltip(_request.BodyContent)"
-                                           EnvVariables="_envVariables" />
+                                           EnvVariables="_resolvedVariables" />
                         }
                         else if (_request.BodyKind == BodyKind.FormUrlEncoded)
                         {
@@ -113,13 +113,26 @@ else
                                           SetEnabled="@((i, v) => ((FormFieldItem)i).Enabled = v)"
                                           OnChanged="SaveFormFieldAsync"
                                           OnRemove="RemoveFormFieldAsync"
-                                          EnvVariables="_envVariables" />
+                                          EnvVariables="_resolvedVariables" />
                         }
                         else
                         {
                             <div class="empty-hint">No body will be sent.</div>
                         }
                     </div>
+                    break;
+                case "Variables":
+                    <KeyValueGrid Items="_request.Variables"
+                                  ItemCreator="@(() => new RequestVariable { HttpRequestItemId = _request.Id })"
+                                  KeyOf="@(i => ((RequestVariable)i).Key)"
+                                  ValueOf="@(i => ((RequestVariable)i).Value)"
+                                  EnabledOf="@(_ => true)"
+                                  SetKey="@((i, v) => ((RequestVariable)i).Key = v)"
+                                  SetValue="@((i, v) => ((RequestVariable)i).Value = v)"
+                                  SetEnabled="@((i, v) => { })"
+                                  OnChanged="SaveRequestVarAsync"
+                                  OnRemove="RemoveRequestVarAsync"
+                                  EnvVariables="_resolvedVariables" />
                     break;
             }
         </div>
@@ -166,12 +179,14 @@ else
 
 @code {
     private HttpRequestItem? _request;
+    private AppEnvironment? _env;
+    private Collection? _collection;
+    private IReadOnlyList<ResolvedVariableEntry> _resolvedVariables = Array.Empty<ResolvedVariableEntry>();
     private ExecutionResult? _result;
     private bool _sending;
     private string _activeTab = "Params";
     private string _responseTab = "Body";
-    private readonly string[] _tabs = ["Params", "Headers", "Body"];
-    private List<EnvironmentVariable> _envVariables = new();
+    private readonly string[] _tabs = ["Params", "Headers", "Body", "Variables"];
 
     protected override async Task OnInitializedAsync()
     {
@@ -193,13 +208,15 @@ else
     {
         if (State.SelectedEnvironmentId is null)
         {
-            _envVariables = new();
+            _env = null;
+            RebuildVariables();
             return;
         }
         using var db = await DbFactory.CreateDbContextAsync();
-        _envVariables = await db.EnvironmentVariables
-            .Where(v => v.AppEnvironmentId == State.SelectedEnvironmentId)
-            .ToListAsync();
+        _env = await db.Environments
+            .Include(e => e.Variables)
+            .FirstOrDefaultAsync(e => e.Id == State.SelectedEnvironmentId);
+        RebuildVariables();
     }
 
     private async Task LoadRequestAsync()
@@ -207,7 +224,9 @@ else
         if (State.SelectedRequestId is null)
         {
             _request = null;
+            _collection = null;
             _result = null;
+            RebuildVariables();
             return;
         }
 
@@ -216,10 +235,22 @@ else
             .Include(r => r.Headers)
             .Include(r => r.QueryParams)
             .Include(r => r.FormFields)
+            .Include(r => r.Variables)
             .FirstOrDefaultAsync(r => r.Id == State.SelectedRequestId);
+
+        _collection = _request is null ? null : await db.Collections
+            .Include(c => c.Variables)
+            .FirstOrDefaultAsync(c => c.Id == _request.CollectionId);
+
+        RebuildVariables();
     }
 
-    private string Tooltip(string? text) => VariablePreview.Build(text, _envVariables);
+    private void RebuildVariables()
+    {
+        _resolvedVariables = State.BuildVariables(_env, _collection, _request);
+    }
+
+    private string Tooltip(string? text) => VariablePreview.Build(text, _resolvedVariables);
 
     private void OnNameInput(ChangeEventArgs e)
     {
@@ -270,21 +301,15 @@ else
     {
         var h = (HeaderItem)item;
         using var db = await DbFactory.CreateDbContextAsync();
-        if (h.Id == 0)
-            db.Headers.Add(h);
-        else
-            db.Headers.Update(h);
+        if (h.Id == 0) db.Headers.Add(h);
+        else db.Headers.Update(h);
         await db.SaveChangesAsync();
     }
 
     private async Task RemoveHeaderAsync(object item)
     {
         var h = (HeaderItem)item;
-        if (h.Id == 0)
-        {
-            _request?.Headers.Remove(h);
-            return;
-        }
+        if (h.Id == 0) { _request?.Headers.Remove(h); return; }
         using var db = await DbFactory.CreateDbContextAsync();
         db.Headers.Remove(await db.Headers.FirstAsync(x => x.Id == h.Id));
         await db.SaveChangesAsync();
@@ -295,21 +320,15 @@ else
     {
         var p = (QueryParamItem)item;
         using var db = await DbFactory.CreateDbContextAsync();
-        if (p.Id == 0)
-            db.QueryParams.Add(p);
-        else
-            db.QueryParams.Update(p);
+        if (p.Id == 0) db.QueryParams.Add(p);
+        else db.QueryParams.Update(p);
         await db.SaveChangesAsync();
     }
 
     private async Task RemoveQueryParamAsync(object item)
     {
         var p = (QueryParamItem)item;
-        if (p.Id == 0)
-        {
-            _request?.QueryParams.Remove(p);
-            return;
-        }
+        if (p.Id == 0) { _request?.QueryParams.Remove(p); return; }
         using var db = await DbFactory.CreateDbContextAsync();
         db.QueryParams.Remove(await db.QueryParams.FirstAsync(x => x.Id == p.Id));
         await db.SaveChangesAsync();
@@ -320,25 +339,40 @@ else
     {
         var f = (FormFieldItem)item;
         using var db = await DbFactory.CreateDbContextAsync();
-        if (f.Id == 0)
-            db.FormFields.Add(f);
-        else
-            db.FormFields.Update(f);
+        if (f.Id == 0) db.FormFields.Add(f);
+        else db.FormFields.Update(f);
         await db.SaveChangesAsync();
     }
 
     private async Task RemoveFormFieldAsync(object item)
     {
         var f = (FormFieldItem)item;
-        if (f.Id == 0)
-        {
-            _request?.FormFields.Remove(f);
-            return;
-        }
+        if (f.Id == 0) { _request?.FormFields.Remove(f); return; }
         using var db = await DbFactory.CreateDbContextAsync();
         db.FormFields.Remove(await db.FormFields.FirstAsync(x => x.Id == f.Id));
         await db.SaveChangesAsync();
         _request?.FormFields.Remove(f);
+    }
+
+    private async Task SaveRequestVarAsync(object item)
+    {
+        var v = (RequestVariable)item;
+        using var db = await DbFactory.CreateDbContextAsync();
+        if (v.Id == 0) db.RequestVariables.Add(v);
+        else db.RequestVariables.Update(v);
+        await db.SaveChangesAsync();
+        RebuildVariables();
+    }
+
+    private async Task RemoveRequestVarAsync(object item)
+    {
+        var v = (RequestVariable)item;
+        if (v.Id == 0) { _request?.Variables.Remove(v); RebuildVariables(); return; }
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.RequestVariables.Remove(await db.RequestVariables.FirstAsync(x => x.Id == v.Id));
+        await db.SaveChangesAsync();
+        _request?.Variables.Remove(v);
+        RebuildVariables();
     }
 
     private async Task SendAsync()
@@ -350,15 +384,10 @@ else
         _result = null;
         StateHasChanged();
 
-        Dictionary<string, string> vars = new(StringComparer.OrdinalIgnoreCase);
-        if (State.SelectedEnvironmentId is int envId)
-        {
-            using var db = await DbFactory.CreateDbContextAsync();
-            var env = await db.Environments
-                .Include(e => e.Variables)
-                .FirstOrDefaultAsync(e => e.Id == envId);
-            vars = State.BuildVariables(env);
-        }
+        var vars = _resolvedVariables.ToDictionary(
+            v => v.Key,
+            v => v.Value,
+            StringComparer.OrdinalIgnoreCase);
 
         _result = await Executor.ExecuteAsync(_request, vars);
         _sending = false;

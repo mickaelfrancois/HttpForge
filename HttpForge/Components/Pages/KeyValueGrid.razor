@@ -40,7 +40,7 @@
     [Parameter, EditorRequired] public required Action<object, bool> SetEnabled { get; set; }
     [Parameter] public EventCallback<object> OnChanged { get; set; }
     [Parameter] public EventCallback<object> OnRemove { get; set; }
-    [Parameter] public IReadOnlyList<EnvironmentVariable> EnvVariables { get; set; } = Array.Empty<EnvironmentVariable>();
+    [Parameter] public IReadOnlyList<ResolvedVariableEntry> EnvVariables { get; set; } = Array.Empty<ResolvedVariableEntry>();
 
     private async Task AddRow()
     {

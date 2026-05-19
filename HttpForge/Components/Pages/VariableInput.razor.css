@@ -58,3 +58,28 @@
     white-space: nowrap;
     max-width: 60%;
 }
+
+.vi-source {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.vi-source-global {
+    background: #1a3a5c;
+    color: #5aacf0;
+}
+
+.vi-source-collection {
+    background: #3d2600;
+    color: #f0a050;
+}
+
+.vi-source-request {
+    background: #0d3320;
+    color: #4ecb8d;
+}

@@ -27,6 +27,7 @@
                 <div class="vi-item @(idx == _selectedIndex ? "selected" : "")"
                      @onmousedown:preventDefault @onclick="() => PickAsync(v)">
                     <span class="vi-key">@v.Key</span>
+                    <span class="vi-source vi-source-@v.Source.ToString().ToLower()">@v.Source</span>
                     <span class="vi-val">@(v.IsSecret ? "(secret)" : v.Value)</span>
                 </div>
             }
@@ -41,14 +42,14 @@
     [Parameter] public string? Title { get; set; }
     [Parameter] public string? CssClass { get; set; }
     [Parameter] public bool Multiline { get; set; }
-    [Parameter] public IReadOnlyList<EnvironmentVariable> EnvVariables { get; set; } = Array.Empty<EnvironmentVariable>();
+    [Parameter] public IReadOnlyList<ResolvedVariableEntry> EnvVariables { get; set; } = Array.Empty<ResolvedVariableEntry>();
     [Parameter] public EventCallback OnBlur { get; set; }
 
     private ElementReference _ref;
     private bool _open;
     private int _triggerIndex = -1;
     private int _selectedIndex;
-    private List<EnvironmentVariable> _matches = new();
+    private List<ResolvedVariableEntry> _matches = new();
     private int? _pendingCaret;
     private DotNetObjectReference<VariableInput>? _selfRef;
     private bool _jsAttached;
@@ -89,7 +90,7 @@
         _open = _matches.Count > 0;
     }
 
-    private async Task PickAsync(EnvironmentVariable v)
+    private async Task PickAsync(ResolvedVariableEntry v)
     {
         if (_triggerIndex < 0 || string.IsNullOrEmpty(Value)) { _open = false; return; }
         var insertion = "{{" + v.Key + "}}";

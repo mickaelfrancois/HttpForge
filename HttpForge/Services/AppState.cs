@@ -2,6 +2,10 @@ using HttpForge.Data.Entities;
 
 namespace HttpForge.Services;
 
+public enum VariableSource { Global, Collection, Request }
+
+public record ResolvedVariableEntry(string Key, string Value, bool IsSecret, VariableSource Source);
+
 public class AppState
 {
     public int? SelectedEnvironmentId { get; set; }
@@ -11,12 +15,25 @@ public class AppState
 
     public void NotifyChanged() => OnChange?.Invoke();
 
-    public Dictionary<string, string> BuildVariables(AppEnvironment? env)
+    public IReadOnlyList<ResolvedVariableEntry> BuildVariables(
+        AppEnvironment? env,
+        Collection? collection,
+        HttpRequestItem? request)
     {
-        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (env is null) return d;
-        foreach (var v in env.Variables)
-            d[v.Key] = v.Value;
-        return d;
+        var merged = new Dictionary<string, ResolvedVariableEntry>(StringComparer.OrdinalIgnoreCase);
+
+        if (env is not null)
+            foreach (var v in env.Variables)
+                merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Global);
+
+        if (collection is not null)
+            foreach (var v in collection.Variables)
+                merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Collection);
+
+        if (request is not null)
+            foreach (var v in request.Variables)
+                merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Request);
+
+        return merged.Values.OrderBy(v => v.Key).ToList();
     }
 }
