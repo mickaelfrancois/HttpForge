@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<FormFieldItem> FormFields => Set<FormFieldItem>();
     public DbSet<AppEnvironment> Environments => Set<AppEnvironment>();
     public DbSet<EnvironmentVariable> EnvironmentVariables => Set<EnvironmentVariable>();
+    public DbSet<CollectionVariable> CollectionVariables => Set<CollectionVariable>();
+    public DbSet<RequestVariable> RequestVariables => Set<RequestVariable>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -21,6 +23,12 @@ public class AppDbContext : DbContext
             .HasMany(c => c.Requests)
             .WithOne(r => r.Collection!)
             .HasForeignKey(r => r.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<Collection>()
+            .HasMany(c => c.Variables)
+            .WithOne()
+            .HasForeignKey(v => v.CollectionId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<HttpRequestItem>()
@@ -39,6 +47,12 @@ public class AppDbContext : DbContext
             .HasMany(r => r.FormFields)
             .WithOne()
             .HasForeignKey(f => f.HttpRequestItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<HttpRequestItem>()
+            .HasMany(r => r.Variables)
+            .WithOne()
+            .HasForeignKey(v => v.HttpRequestItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<AppEnvironment>()
