@@ -83,9 +83,39 @@
                     <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
                     <span>@c.Name</span>
                 </button>
+                <button class="icon-btn @(_collVarEditorOpen.Contains(c.Id) ? "active" : "")"
+                        title="Variables" @onclick="() => ToggleCollVarEditor(c.Id)">⚙</button>
                 <button class="icon-btn" title="New request" @onclick="() => AddRequest(c)">+</button>
                 <button class="icon-btn" title="Delete collection" @onclick="() => DeleteCollection(c)">🗑</button>
             </div>
+            @if (_collVarEditorOpen.Contains(c.Id) && _collVars.TryGetValue(c.Id, out var cvars))
+            {
+                <div class="env-editor">
+                    <div class="var-list">
+                        @foreach (var v in cvars)
+                        {
+                            var masked = v.IsSecret && !_collVarRevealed.Contains(v.Id);
+                            <div class="var-row">
+                                <input placeholder="key" value="@v.Key"
+                                       @oninput="e => OnCollVarKeyChanged(v, e)" />
+                                <input placeholder="value" type="@(masked ? "password" : "text")"
+                                       value="@v.Value"
+                                       @oninput="e => OnCollVarValueChanged(v, e)" />
+                                @if (v.IsSecret)
+                                {
+                                    <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
+                                            @onclick="() => ToggleCollVarReveal(v)">@(masked ? "👁" : "🚫")</button>
+                                }
+                                <button class="icon-btn @(v.IsSecret ? "active" : "")"
+                                        title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
+                                        @onclick="() => ToggleCollVarSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
+                                <button class="icon-btn" @onclick="() => RemoveCollVar(v, c.Id)">✕</button>
+                            </div>
+                        }
+                        <button class="link-btn" @onclick="() => AddCollVar(c.Id)">+ add variable</button>
+                    </div>
+                </div>
+            }
             @if (_expanded.Contains(c.Id))
             {
                 <div class="request-list">
@@ -123,6 +153,9 @@
     private bool _showEnvEditor;
     private string _newEnvName = string.Empty;
     private HashSet<int> _revealed = new();
+    private HashSet<int> _collVarEditorOpen = new();
+    private Dictionary<int, List<CollectionVariable>> _collVars = new();
+    private HashSet<int> _collVarRevealed = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -146,6 +179,7 @@
         using var db = await DbFactory.CreateDbContextAsync();
         _collections = await db.Collections
             .Include(c => c.Requests)
+            .Include(c => c.Variables)
             .OrderBy(c => c.Name)
             .ToListAsync();
         _environments = await db.Environments
@@ -155,6 +189,7 @@
         _selectedEnv = State.SelectedEnvironmentId is int id
             ? _environments.FirstOrDefault(e => e.Id == id)
             : null;
+        _collVars = _collections.ToDictionary(c => c.Id, c => c.Variables);
     }
 
     private void ToggleCollection(int id)
@@ -373,6 +408,66 @@
     private void ToggleReveal(EnvironmentVariable v)
     {
         if (!_revealed.Add(v.Id)) _revealed.Remove(v.Id);
+    }
+
+    private void ToggleCollVarEditor(int collectionId)
+    {
+        if (!_collVarEditorOpen.Add(collectionId))
+            _collVarEditorOpen.Remove(collectionId);
+    }
+
+    private async Task AddCollVar(int collectionId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var v = new CollectionVariable { CollectionId = collectionId, Key = "", Value = "" };
+        db.CollectionVariables.Add(v);
+        await db.SaveChangesAsync();
+        await ReloadAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task RemoveCollVar(CollectionVariable v, int collectionId)
+    {
+        var label = string.IsNullOrWhiteSpace(v.Key) ? "(empty)" : v.Key;
+        if (!await Confirm($"Delete variable \"{label}\"?")) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionVariables.Remove(await db.CollectionVariables.FirstAsync(x => x.Id == v.Id));
+        await db.SaveChangesAsync();
+        await ReloadAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task OnCollVarKeyChanged(CollectionVariable v, ChangeEventArgs e)
+    {
+        v.Key = e.Value?.ToString() ?? "";
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionVariables.Update(v);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task OnCollVarValueChanged(CollectionVariable v, ChangeEventArgs e)
+    {
+        v.Value = e.Value?.ToString() ?? "";
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionVariables.Update(v);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task ToggleCollVarSecret(CollectionVariable v)
+    {
+        v.IsSecret = !v.IsSecret;
+        if (!v.IsSecret) _collVarRevealed.Remove(v.Id);
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionVariables.Update(v);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private void ToggleCollVarReveal(CollectionVariable v)
+    {
+        if (!_collVarRevealed.Add(v.Id)) _collVarRevealed.Remove(v.Id);
     }
 
     private ValueTask<bool> Confirm(string message)
