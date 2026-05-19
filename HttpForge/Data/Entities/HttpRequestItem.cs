@@ -20,6 +20,7 @@ public class HttpRequestItem
     public List<HeaderItem> Headers { get; set; } = new();
     public List<QueryParamItem> QueryParams { get; set; } = new();
     public List<FormFieldItem> FormFields { get; set; } = new();
+    public List<RequestVariable> Variables { get; set; } = new();
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
