@@ -6,14 +6,14 @@ public static class SchemaUpgrader
 {
     private static readonly HashSet<string> _allowedTables =
     [
-        "Collections", "AppEnvironments", "EnvironmentVariables",
+        "Collections", "Environments", "EnvironmentVariables",
         "CollectionVariables", "RequestVariables", "AppSettings",
         "CollectionVariableSets", "CollectionVariableEntries"
     ];
     public static void Apply(AppDbContext db)
     {
         EnsureColumn(db, "EnvironmentVariables", "IsSecret", "INTEGER NOT NULL DEFAULT 0");
-        EnsureColumn(db, "AppEnvironments", "IsBase", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(db, "Environments", "IsBase", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(db, "Collections", "ActiveCollectionVariableSetId", "INTEGER NULL");
 
         EnsureTable(db, "CollectionVariables",
@@ -66,12 +66,16 @@ public static class SchemaUpgrader
         var conn = db.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open) conn.Open();
 
+        using var tableCheck = conn.CreateCommand();
+        tableCheck.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='Environments';";
+        if ((long)tableCheck.ExecuteScalar()! == 0) return;
+
         using var check = conn.CreateCommand();
-        check.CommandText = "SELECT COUNT(*) FROM \"AppEnvironments\" WHERE \"IsBase\" = 1;";
+        check.CommandText = "SELECT COUNT(*) FROM \"Environments\" WHERE \"IsBase\" = 1;";
         if ((long)check.ExecuteScalar()! > 0) return;
 
         using var insert = conn.CreateCommand();
-        insert.CommandText = "INSERT INTO \"AppEnvironments\" (\"Name\", \"IsBase\") VALUES ('Base', 1);";
+        insert.CommandText = "INSERT INTO \"Environments\" (\"Name\", \"IsBase\") VALUES ('Base', 1);";
         insert.ExecuteNonQuery();
     }
 
@@ -79,6 +83,10 @@ public static class SchemaUpgrader
     {
         var conn = db.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open) conn.Open();
+
+        using var tableCheck = conn.CreateCommand();
+        tableCheck.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='AppSettings';";
+        if ((long)tableCheck.ExecuteScalar()! == 0) return;
 
         using var check = conn.CreateCommand();
         check.CommandText = "SELECT COUNT(*) FROM \"AppSettings\" WHERE \"Id\" = 1;";
@@ -145,6 +153,12 @@ public static class SchemaUpgrader
 
         var conn = db.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open) conn.Open();
+
+        // If the table doesn't exist yet (fresh DB, EF Core will create it), skip —
+        // the column will be present in the CREATE TABLE statement from migrations.
+        using var tableCheck = conn.CreateCommand();
+        tableCheck.CommandText = $"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{table}';";
+        if ((long)tableCheck.ExecuteScalar()! == 0) return;
 
         using var check = conn.CreateCommand();
         check.CommandText = $"PRAGMA table_info(\"{table}\");";
