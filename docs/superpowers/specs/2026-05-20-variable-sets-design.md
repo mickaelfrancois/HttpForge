@@ -96,6 +96,11 @@ global base
 
 Unchanged — flat list of request variables.
 
+## Edge Cases
+
+- **Deleting an active sub-set:** if the deleted sub-set was the active one (global or collection), the active selection resets to null (base only) automatically.
+- **Sub-set naming:** names are free-form; the base set is identified by `IsBase=true`, not by name. Users may name a sub-set "Base" without conflict.
+
 ## Acceptance Criteria
 
 - Creating a global sub-set and selecting it overrides matching keys from the global base
