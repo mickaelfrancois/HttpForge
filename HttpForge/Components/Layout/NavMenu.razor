@@ -344,6 +344,7 @@
 
         await ReloadAsync();
         State.NotifyChanged();
+        await InvokeAsync(StateHasChanged);
 
         _ = Task.Delay(5000).ContinueWith(_ => InvokeAsync(() =>
         {
