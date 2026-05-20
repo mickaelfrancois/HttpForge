@@ -16,6 +16,7 @@ public class HttpRequestItem
 
     public BodyKind BodyKind { get; set; } = BodyKind.None;
     public string? BodyContent { get; set; }
+    public string? PostScript { get; set; }
 
     public List<HeaderItem> Headers { get; set; } = new();
     public List<QueryParamItem> QueryParams { get; set; } = new();

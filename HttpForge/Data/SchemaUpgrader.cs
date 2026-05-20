@@ -8,10 +8,11 @@ public static class SchemaUpgrader
     [
         "Collections", "Environments", "EnvironmentVariables",
         "CollectionVariables", "RequestVariables", "AppSettings",
-        "CollectionVariableSets", "CollectionVariableEntries"
+        "CollectionVariableSets", "CollectionVariableEntries", "Requests"
     ];
     public static void Apply(AppDbContext db)
     {
+        EnsureColumn(db, "Requests", "PostScript", "TEXT NULL");
         EnsureColumn(db, "EnvironmentVariables", "IsSecret", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(db, "Environments", "IsBase", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(db, "Collections", "ActiveCollectionVariableSetId", "INTEGER NULL");
