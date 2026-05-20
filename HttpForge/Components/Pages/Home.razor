@@ -179,8 +179,10 @@ else
 
 @code {
     private HttpRequestItem? _request;
-    private AppEnvironment? _env;
-    private Collection? _collection;
+    private AppEnvironment? _globalBase;
+    private AppEnvironment? _globalSubset;
+    private CollectionVariableSet? _collectionBase;
+    private CollectionVariableSet? _collectionSubset;
     private IReadOnlyList<ResolvedVariableEntry> _resolvedVariables = Array.Empty<ResolvedVariableEntry>();
     private ExecutionResult? _result;
     private bool _sending;
@@ -214,16 +216,14 @@ else
 
     private async Task LoadEnvAsync()
     {
-        if (State.SelectedEnvironmentId is null)
-        {
-            _env = null;
-            RebuildVariables();
-            return;
-        }
         using var db = await DbFactory.CreateDbContextAsync();
-        _env = await db.Environments
+        var envs = await db.Environments
             .Include(e => e.Variables)
-            .FirstOrDefaultAsync(e => e.Id == State.SelectedEnvironmentId);
+            .ToListAsync();
+        _globalBase = envs.FirstOrDefault(e => e.IsBase);
+        _globalSubset = State.SelectedEnvironmentId is int id
+            ? envs.FirstOrDefault(e => e.Id == id && !e.IsBase)
+            : null;
         RebuildVariables();
     }
 
@@ -232,7 +232,8 @@ else
         if (State.SelectedRequestId is null)
         {
             _request = null;
-            _collection = null;
+            _collectionBase = null;
+            _collectionSubset = null;
             _result = null;
             RebuildVariables();
             return;
@@ -248,16 +249,21 @@ else
             .Include(r => r.Variables)
             .FirstOrDefaultAsync(r => r.Id == State.SelectedRequestId);
 
-        _collection = _request is null ? null : await db.Collections
-            .Include(c => c.Variables)
+        var collection = _request is null ? null : await db.Collections
+            .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
             .FirstOrDefaultAsync(c => c.Id == _request.CollectionId);
+
+        _collectionBase = collection?.VariableSets.FirstOrDefault(s => s.IsBase);
+        _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
+            ? collection.VariableSets.FirstOrDefault(s => s.Id == sid)
+            : null;
 
         RebuildVariables();
     }
 
     private void RebuildVariables()
     {
-        _resolvedVariables = State.BuildVariables(_env, _collection, _request);
+        _resolvedVariables = State.BuildVariables(_globalBase, _globalSubset, _collectionBase, _collectionSubset, _request);
     }
 
     private string Tooltip(string? text) => VariablePreview.Build(text, _resolvedVariables);

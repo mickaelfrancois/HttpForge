@@ -16,18 +16,28 @@ public class AppState
     public void NotifyChanged() => OnChange?.Invoke();
 
     public IReadOnlyList<ResolvedVariableEntry> BuildVariables(
-        AppEnvironment? env,
-        Collection? collection,
+        AppEnvironment? globalBase,
+        AppEnvironment? globalSubset,
+        CollectionVariableSet? collectionBase,
+        CollectionVariableSet? collectionSubset,
         HttpRequestItem? request)
     {
         var merged = new Dictionary<string, ResolvedVariableEntry>(StringComparer.OrdinalIgnoreCase);
 
-        if (env is not null)
-            foreach (var v in env.Variables)
+        if (globalBase is not null)
+            foreach (var v in globalBase.Variables)
                 merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Global);
 
-        if (collection is not null)
-            foreach (var v in collection.Variables)
+        if (globalSubset is not null)
+            foreach (var v in globalSubset.Variables)
+                merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Global);
+
+        if (collectionBase is not null)
+            foreach (var v in collectionBase.Entries)
+                merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Collection);
+
+        if (collectionSubset is not null)
+            foreach (var v in collectionSubset.Entries)
                 merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Collection);
 
         if (request is not null)
