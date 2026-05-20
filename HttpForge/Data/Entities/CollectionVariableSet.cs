@@ -1,9 +1,10 @@
 namespace HttpForge.Data.Entities;
 
-public class AppEnvironment
+public class CollectionVariableSet
 {
     public int Id { get; set; }
+    public int CollectionId { get; set; }
     public string Name { get; set; } = string.Empty;
     public bool IsBase { get; set; }
-    public List<EnvironmentVariable> Variables { get; set; } = new();
+    public List<CollectionVariableEntry> Entries { get; set; } = new();
 }
