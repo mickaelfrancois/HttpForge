@@ -252,6 +252,7 @@
         using var db = await DbFactory.CreateDbContextAsync();
         var settings = await db.Settings.FirstOrDefaultAsync(s => s.Id == 1);
         State.SelectedEnvironmentId = settings?.ActiveGlobalSubsetId;
+        State.NotifyChanged();
     }
 
     public void Dispose()
@@ -269,6 +270,7 @@
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[HttpForge] NavMenu reload error: {ex.Message}");
+            await InvokeAsync(StateHasChanged);
         }
     }
 
