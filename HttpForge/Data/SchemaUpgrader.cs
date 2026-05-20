@@ -4,6 +4,12 @@ namespace HttpForge.Data;
 
 public static class SchemaUpgrader
 {
+    private static readonly HashSet<string> _allowedTables =
+    [
+        "Collections", "AppEnvironments", "EnvironmentVariables",
+        "CollectionVariables", "RequestVariables", "AppSettings",
+        "CollectionVariableSets", "CollectionVariableEntries"
+    ];
     public static void Apply(AppDbContext db)
     {
         EnsureColumn(db, "EnvironmentVariables", "IsSecret", "INTEGER NOT NULL DEFAULT 0");
@@ -96,23 +102,30 @@ public static class SchemaUpgrader
         varCheck.CommandText = "SELECT COUNT(*) FROM \"CollectionVariables\";";
         if ((long)varCheck.ExecuteScalar()! == 0) return;
 
+        using var tx = conn.BeginTransaction();
         using var insertSets = conn.CreateCommand();
+        insertSets.Transaction = tx;
         insertSets.CommandText =
             "INSERT INTO \"CollectionVariableSets\" (\"CollectionId\", \"Name\", \"IsBase\") " +
             "SELECT DISTINCT \"CollectionId\", 'Base', 1 FROM \"CollectionVariables\";";
         insertSets.ExecuteNonQuery();
 
         using var insertEntries = conn.CreateCommand();
+        insertEntries.Transaction = tx;
         insertEntries.CommandText =
             "INSERT INTO \"CollectionVariableEntries\" (\"CollectionVariableSetId\", \"Key\", \"Value\", \"IsSecret\") " +
             "SELECT cvs.\"Id\", cv.\"Key\", cv.\"Value\", cv.\"IsSecret\" " +
             "FROM \"CollectionVariables\" cv " +
             "JOIN \"CollectionVariableSets\" cvs ON cvs.\"CollectionId\" = cv.\"CollectionId\" AND cvs.\"IsBase\" = 1;";
         insertEntries.ExecuteNonQuery();
+        tx.Commit();
     }
 
     private static void EnsureTable(AppDbContext db, string table, string createSql)
     {
+        if (!_allowedTables.Contains(table))
+            throw new ArgumentException($"Unknown table '{table}'");
+
         var conn = db.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open) conn.Open();
 
@@ -127,6 +140,9 @@ public static class SchemaUpgrader
 
     private static void EnsureColumn(AppDbContext db, string table, string column, string definition)
     {
+        if (!_allowedTables.Contains(table))
+            throw new ArgumentException($"Unknown table '{table}'");
+
         var conn = db.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open) conn.Open();
 

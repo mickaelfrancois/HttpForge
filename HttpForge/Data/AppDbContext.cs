@@ -42,7 +42,7 @@ public class AppDbContext : DbContext
 
         b.Entity<CollectionVariableSet>()
             .HasMany(s => s.Entries)
-            .WithOne()
+            .WithOne(e => e.VariableSet)
             .HasForeignKey(e => e.CollectionVariableSetId)
             .OnDelete(DeleteBehavior.Cascade);
 
