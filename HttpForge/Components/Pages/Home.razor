@@ -41,9 +41,13 @@ else
             </button>
         </div>
 
-        @if (_request.Url?.Contains("{{") == true)
+        @{
+            var _hasParams = _request.QueryParams.Any(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key));
+            var _showPreview = !string.IsNullOrWhiteSpace(_request.Url) && (_request.Url.Contains("{{") || _hasParams);
+        }
+        @if (_showPreview)
         {
-            <div class="url-preview">@VariablePreview.Resolve(_request.Url, _resolvedVariables)</div>
+            <div class="url-preview">@VariablePreview.BuildFullUrl(_request.Url, _request.QueryParams, _resolvedVariables)</div>
         }
 
         <div class="tabs">

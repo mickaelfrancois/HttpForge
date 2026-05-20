@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using HttpForge.Data.Entities;
 
 namespace HttpForge.Services;
 
@@ -41,5 +42,24 @@ public static partial class VariablePreview
                 v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
             return found is { IsSecret: false } ? found.Value : m.Value;
         });
+    }
+
+    public static string BuildFullUrl(
+        string? url,
+        IEnumerable<QueryParamItem> queryParams,
+        IReadOnlyList<ResolvedVariableEntry> variables)
+    {
+        var resolvedUrl = Resolve(url, variables);
+        if (string.IsNullOrEmpty(resolvedUrl)) return string.Empty;
+
+        var pairs = queryParams
+            .Where(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key))
+            .Select(p => $"{Resolve(p.Key, variables)}={Resolve(p.Value, variables)}")
+            .ToList();
+
+        if (pairs.Count == 0) return resolvedUrl;
+
+        var sep = resolvedUrl.Contains('?') ? "&" : "?";
+        return resolvedUrl + sep + string.Join("&", pairs);
     }
 }
