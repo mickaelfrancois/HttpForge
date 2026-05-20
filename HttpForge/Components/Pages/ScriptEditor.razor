@@ -1,0 +1,40 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="script-editor-wrap">
+    <textarea @ref="_textareaRef"></textarea>
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private ElementReference _textareaRef;
+    private DotNetObjectReference<ScriptEditor>? _dotnetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("forge.editor.init", _textareaRef, _dotnetRef, Value ?? string.Empty);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnScriptChanged(string value)
+    {
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dotnetRef is not null)
+        {
+            try { await JS.InvokeVoidAsync("forge.editor.dispose", _textareaRef); } catch { }
+        }
+        _dotnetRef?.Dispose();
+    }
+}

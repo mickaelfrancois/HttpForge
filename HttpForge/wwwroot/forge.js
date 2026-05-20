@@ -151,3 +151,39 @@ window.forge.scripts = {
         }
     }
 };
+
+window.forge.editor = {
+    _instances: new Map(),
+
+    init(textareaEl, dotnetRef, initialValue) {
+        if (this._instances.has(textareaEl)) return;
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+            || (!document.documentElement.getAttribute('data-theme')
+                && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const cm = CodeMirror.fromTextArea(textareaEl, {
+            mode: 'javascript',
+            theme: isDark ? 'monokai' : 'default',
+            lineNumbers: true,
+            tabSize: 2,
+            indentWithTabs: false,
+            lineWrapping: false,
+            autofocus: false
+        });
+        cm.setValue(initialValue || '');
+        let _changeTimer = null;
+        cm.on('change', () => {
+            clearTimeout(_changeTimer);
+            _changeTimer = setTimeout(() => {
+                dotnetRef.invokeMethodAsync('OnScriptChanged', cm.getValue());
+            }, 300);
+        });
+        this._instances.set(textareaEl, cm);
+    },
+
+    dispose(textareaEl) {
+        const cm = this._instances.get(textareaEl);
+        if (!cm) return;
+        cm.toTextArea();
+        this._instances.delete(textareaEl);
+    }
+};
