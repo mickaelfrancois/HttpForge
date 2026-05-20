@@ -301,3 +301,48 @@
     padding: 0.35rem 0.6rem;
     word-break: break-all;
 }
+
+.scripts-tab {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.script-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+.script-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.script-result {
+    border-top: 1px solid var(--border-main);
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.script-result--ok .script-result-header { color: var(--status-2xx-text); }
+.script-result--error .script-result-header { color: var(--error-text); font-weight: 600; }
+
+.script-mutations {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+}
+
+.script-mutations li { padding: 1px 0; color: var(--text-primary); }
+.mutation-val { font-family: monospace; color: var(--text-code); }
+
+.script-log {
+    color: var(--text-muted);
+    font-family: monospace;
+    margin-top: 2px;
+}

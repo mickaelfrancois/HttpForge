@@ -3,6 +3,7 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
 @inject RequestExecutor Executor
+@inject ScriptRunner ScriptRunner
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -200,6 +201,44 @@ else
                         </table>
                     }
                 </div>
+                @if (_scriptResult is not null)
+                {
+                    <div class="script-result @(_scriptResult.Error is null ? "script-result--ok" : "script-result--error")">
+                        <div class="script-result-header">
+                            @if (_scriptResult.Error is null)
+                            {
+                                <span>&#10003; Post-request script</span>
+                            }
+                            else
+                            {
+                                <span>&#10007; Script error: @_scriptResult.Error</span>
+                            }
+                        </div>
+                        @if (_scriptResult.Mutations.Request.Count > 0 ||
+                             _scriptResult.Mutations.Collection.Count > 0 ||
+                             _scriptResult.Mutations.Global.Count > 0)
+                        {
+                            <ul class="script-mutations">
+                                @foreach (var (k, v) in _scriptResult.Mutations.Request)
+                                {
+                                    <li>request[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
+                                }
+                                @foreach (var (k, v) in _scriptResult.Mutations.Collection)
+                                {
+                                    <li>collection[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
+                                }
+                                @foreach (var (k, v) in _scriptResult.Mutations.Global)
+                                {
+                                    <li>global[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
+                                }
+                            </ul>
+                        }
+                        @foreach (var log in _scriptResult.Logs)
+                        {
+                            <div class="script-log">&#9656; @log</div>
+                        }
+                    </div>
+                }
             }
         </div>
     </div>
@@ -214,6 +253,7 @@ else
     private IReadOnlyList<ResolvedVariableEntry> _resolvedVariables = Array.Empty<ResolvedVariableEntry>();
     private ExecutionResult? _result;
     private bool _sending;
+    private ScriptResult? _scriptResult;
     private string _activeTab = "Params";
     private string _responseTab = "Body";
     private readonly string[] _tabs = ["Params", "Headers", "Body", "Variables", "Scripts"];
@@ -440,15 +480,79 @@ else
 
         _sending = true;
         _result = null;
+        _scriptResult = null;
         StateHasChanged();
 
-        var vars = _resolvedVariables.ToDictionary(
-            v => v.Key,
-            v => v.Value,
-            StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var vars = _resolvedVariables.ToDictionary(
+                v => v.Key,
+                v => v.Value,
+                StringComparer.OrdinalIgnoreCase);
 
-        _result = await Executor.ExecuteAsync(_request, vars);
-        _sending = false;
+            _result = await Executor.ExecuteAsync(_request, vars);
+
+            if (_result is not null && _result.Error is null && !string.IsNullOrWhiteSpace(_request?.PostScript))
+            {
+                var activeCollectionSetId = (_collectionSubset ?? _collectionBase)?.Id;
+                var activeGlobalEnvId = (_globalSubset ?? _globalBase)?.Id;
+
+                _scriptResult = await ScriptRunner.RunPostScriptAsync(
+                    _request,
+                    _result,
+                    activeCollectionSetId,
+                    activeGlobalEnvId,
+                    _resolvedVariables);
+
+                if (_scriptResult is not null)
+                    ApplyScriptMutationsToMemory(_scriptResult);
+            }
+        }
+        finally
+        {
+            _sending = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ApplyScriptMutationsToMemory(ScriptResult result)
+    {
+        foreach (var (key, value) in result.Mutations.Request)
+        {
+            var existing = _request?.Variables.FirstOrDefault(v =>
+                string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+                existing.Value = value;
+            else if (_request is not null)
+                _request.Variables.Add(new RequestVariable
+                    { HttpRequestItemId = _request.Id, Key = key, Value = value });
+        }
+
+        foreach (var (key, value) in result.Mutations.Collection)
+        {
+            var target = _collectionSubset ?? _collectionBase;
+            var existing = target?.Entries.FirstOrDefault(e =>
+                string.Equals(e.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+                existing.Value = value;
+            else
+                target?.Entries.Add(new CollectionVariableEntry
+                    { CollectionVariableSetId = target.Id, Key = key, Value = value });
+        }
+
+        foreach (var (key, value) in result.Mutations.Global)
+        {
+            var target = _globalSubset ?? _globalBase;
+            var existing = target?.Variables.FirstOrDefault(v =>
+                string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+                existing.Value = value;
+            else
+                target?.Variables.Add(new EnvironmentVariable
+                    { AppEnvironmentId = target.Id, Key = key, Value = value });
+        }
+
+        RebuildVariables();
     }
 
     private static string StatusClass(int code) => code switch
@@ -476,4 +580,7 @@ else
         }
         return body;
     }
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s : s[..max] + "…";
 }
