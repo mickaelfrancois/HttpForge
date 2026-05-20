@@ -15,16 +15,16 @@
 .kv-header {
     font-size: 0.7rem;
     text-transform: uppercase;
-    color: #888;
+    color: var(--text-muted);
     padding: 0 0.2rem 0.25rem;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-main);
 }
 
 .kv-row ::deep input[type="text"],
 .kv-row ::deep input:not([type]) {
-    background: #1e1e1e;
-    border: 1px solid #333;
-    color: #e0e0e0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
     border-radius: 3px;
     padding: 0.3rem 0.5rem;
     font-size: 0.85rem;
@@ -33,13 +33,13 @@
 
 .kv-row ::deep input:focus {
     outline: none;
-    border-color: #0e639c;
+    border-color: var(--accent-blue);
 }
 
 .row-del {
     background: none;
     border: none;
-    color: #888;
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
     padding: 0.2rem;
@@ -47,15 +47,15 @@
 }
 
 .row-del:hover {
-    background: #3a3a3a;
-    color: #f48771;
+    background: var(--bg-input-dark);
+    color: var(--error-text);
 }
 
 .add-row {
     margin-top: 0.4rem;
     background: none;
-    border: 1px dashed #444;
-    color: #888;
+    border: 1px dashed var(--border-input);
+    color: var(--text-muted);
     cursor: pointer;
     padding: 0.35rem;
     border-radius: 3px;
@@ -63,6 +63,6 @@
 }
 
 .add-row:hover {
-    color: #fff;
-    border-color: #569cd6;
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
 }
