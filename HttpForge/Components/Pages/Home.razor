@@ -221,6 +221,7 @@ else
             .Include(e => e.Variables)
             .ToListAsync();
         _globalBase = envs.FirstOrDefault(e => e.IsBase);
+        // Only non-base environments are selectable; base is always loaded as _globalBase
         _globalSubset = State.SelectedEnvironmentId is int id
             ? envs.FirstOrDefault(e => e.Id == id && !e.IsBase)
             : null;
@@ -255,7 +256,7 @@ else
 
         _collectionBase = collection?.VariableSets.FirstOrDefault(s => s.IsBase);
         _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
-            ? collection.VariableSets.FirstOrDefault(s => s.Id == sid)
+            ? collection.VariableSets.FirstOrDefault(s => s.Id == sid && !s.IsBase)
             : null;
 
         RebuildVariables();
