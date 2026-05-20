@@ -552,10 +552,10 @@
         var name = await JS.InvokeAsync<string?>("prompt", "Sub-set name:");
         if (string.IsNullOrWhiteSpace(name)) return;
         using var db = await DbFactory.CreateDbContextAsync();
+        var col = await db.Collections.FirstAsync(x => x.Id == collectionId);
         var set = new CollectionVariableSet { CollectionId = collectionId, Name = name.Trim(), IsBase = false };
         db.CollectionVariableSets.Add(set);
         await db.SaveChangesAsync();
-        var col = await db.Collections.FirstAsync(x => x.Id == collectionId);
         col.ActiveCollectionVariableSetId = set.Id;
         await db.SaveChangesAsync();
         State.NotifyChanged();
