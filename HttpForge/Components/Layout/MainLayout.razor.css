@@ -8,12 +8,12 @@
 
 .forge-sidebar {
     width: 320px;
-    min-width: 240px;
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border-main);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .forge-main {
@@ -21,6 +21,20 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.forge-resize-handle {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.forge-resize-handle:hover,
+.forge-resize-handle.dragging {
+    background: rgba(14, 99, 156, 0.2);
 }
 
 #blazor-error-ui {
