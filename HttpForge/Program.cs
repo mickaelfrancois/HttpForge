@@ -22,6 +22,7 @@ builder.Services.AddScoped<RequestExecutor>();
 builder.Services.AddScoped<VariableResolver>();
 builder.Services.AddScoped<InsomniaImporter>();
 builder.Services.AddScoped<AppState>();
+builder.Services.AddScoped<ScriptRunner>();
 
 var app = builder.Build();
 
