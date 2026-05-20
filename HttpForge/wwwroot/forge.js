@@ -61,3 +61,38 @@ window.forge.theme = {
         }
     }
 };
+
+window.forge.sidebar = {
+    init(sidebarEl, handleEl) {
+        const stored = localStorage.getItem('forge-sidebar-width');
+        if (stored) sidebarEl.style.width = stored + 'px';
+
+        let startX = 0, startWidth = 0;
+
+        const onMouseMove = (e) => {
+            const newWidth = Math.min(500, Math.max(200, startWidth + (e.clientX - startX)));
+            sidebarEl.style.width = newWidth + 'px';
+        };
+
+        const onMouseUp = () => {
+            const w = parseInt(sidebarEl.style.width, 10);
+            localStorage.setItem('forge-sidebar-width', w);
+            handleEl.classList.remove('dragging');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        handleEl.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startX = e.clientX;
+            startWidth = sidebarEl.offsetWidth;
+            handleEl.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+};
