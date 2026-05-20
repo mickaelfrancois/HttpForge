@@ -109,7 +109,7 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
 
             return (requestCount, varCount);
         }
-        catch
+        catch (Exception)
         {
             db.Collections.Remove(collection);
             await db.SaveChangesAsync();
@@ -163,15 +163,11 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
     {
         foreach (var node in nodes)
         {
+            if (node.Url is not null)
+                yield return node;
             if (node.Children is { Count: > 0 })
-            {
                 foreach (var child in FlattenNodes(node.Children))
                     yield return child;
-            }
-            else if (node.Url is not null)
-            {
-                yield return node;
-            }
         }
     }
 

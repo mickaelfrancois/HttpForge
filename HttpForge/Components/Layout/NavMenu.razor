@@ -249,6 +249,7 @@
     private HashSet<int> _collVarEditorOpen = new();
     private HashSet<int> _collVarEntryRevealed = new();
     private string? _importStatus;
+    private bool _disposed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -267,6 +268,7 @@
 
     public void Dispose()
     {
+        _disposed = true;
         State.OnChange -= OnStateChanged;
     }
 
@@ -324,7 +326,7 @@
             {
                 using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
                 var result = await Importer.ImportFileAsync(stream, file.Name);
-                if (result.RequestsCreated > 0 || result.VariablesCreated > 0)
+                if (result.RequestsCreated > 0)
                 {
                     totalCollections++;
                     totalRequests += result.RequestsCreated;
@@ -346,11 +348,11 @@
         State.NotifyChanged();
         await InvokeAsync(StateHasChanged);
 
-        _ = Task.Delay(5000).ContinueWith(_ => InvokeAsync(() =>
+        _ = Task.Delay(5000).ContinueWith(_ =>
         {
-            _importStatus = null;
-            StateHasChanged();
-        }));
+            if (!_disposed)
+                InvokeAsync(() => { _importStatus = null; StateHasChanged(); });
+        }, TaskScheduler.Default);
     }
 
     private async Task OnNewCollectionKey(KeyboardEventArgs e)
