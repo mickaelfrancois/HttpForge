@@ -70,8 +70,8 @@ window.forge.sidebar = {
 
         const stored = localStorage.getItem('forge-sidebar-width');
         if (stored) {
-            const w = Math.min(500, Math.max(200, parseInt(stored, 10)));
-            if (!isNaN(w)) sidebarEl.style.width = w + 'px';
+            const parsed = parseInt(stored, 10);
+            if (!isNaN(parsed)) sidebarEl.style.width = Math.min(500, Math.max(200, parsed)) + 'px';
         }
 
         let startX = 0, startWidth = 0;
@@ -103,3 +103,11 @@ window.forge.sidebar = {
         });
     }
 };
+
+// MainLayout renders as Static SSR (no @rendermode) so OnAfterRenderAsync never fires.
+// Initialize directly from JS — elements are in the DOM when this script loads.
+(function () {
+    const sidebar = document.querySelector('.forge-sidebar');
+    const handle = document.querySelector('.forge-resize-handle');
+    if (sidebar && handle) window.forge.sidebar.init(sidebar, handle);
+}());

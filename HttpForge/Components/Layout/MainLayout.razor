@@ -1,12 +1,11 @@
 @inherits LayoutComponentBase
-@inject IJSRuntime JS
 
 <ThemeToggle />
 <div class="forge-shell">
-    <aside class="forge-sidebar" @ref="_sidebarRef">
+    <aside class="forge-sidebar">
         <NavMenu />
     </aside>
-    <div class="forge-resize-handle" @ref="_handleRef"></div>
+    <div class="forge-resize-handle"></div>
     <main class="forge-main">
         @Body
     </main>
@@ -17,14 +16,3 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
-
-@code {
-    private ElementReference _sidebarRef;
-    private ElementReference _handleRef;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-            await JS.InvokeVoidAsync("forge.sidebar.init", _sidebarRef, _handleRef);
-    }
-}
