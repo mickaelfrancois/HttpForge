@@ -10,32 +10,25 @@
 </div>
 
 <div class="env-block">
-    <label>Environment</label>
+    <label>Global variables</label>
     <div class="env-row">
-        <select value="@(State.SelectedEnvironmentId?.ToString() ?? "")" @onchange="OnEnvChanged">
-            <option value="">— none —</option>
-            @foreach (var e in _environments)
+        <select value="@(State.SelectedEnvironmentId?.ToString() ?? "")" @onchange="OnSubsetChanged">
+            <option value="">— base only —</option>
+            @foreach (var s in _globalSubsets)
             {
-                <option value="@e.Id">@e.Name</option>
+                <option value="@s.Id">@s.Name</option>
             }
         </select>
-        <button class="icon-btn" title="Manage environments" @onclick="ToggleEnvEditor">@(_showEnvEditor ? "✕" : "⚙")</button>
+        <button class="icon-btn" title="Manage global variables" @onclick="ToggleEnvEditor">@(_showEnvEditor ? "✕" : "⚙")</button>
     </div>
     @if (_showEnvEditor)
     {
         <div class="env-editor">
-            <div class="env-actions">
-                <input placeholder="New environment name" @bind="_newEnvName" @bind:event="oninput" />
-                <button @onclick="AddEnvironment" disabled="@string.IsNullOrWhiteSpace(_newEnvName)">Add</button>
-            </div>
-            @if (_selectedEnv is not null)
+            @if (_globalBase is not null)
             {
                 <div class="var-list">
-                    <div class="var-list-header">
-                        <span>@_selectedEnv.Name — variables</span>
-                        <button class="link-btn" @onclick="DeleteSelectedEnv">delete env</button>
-                    </div>
-                    @foreach (var v in _selectedEnv.Variables)
+                    <div class="var-list-header"><span>Base</span></div>
+                    @foreach (var v in _globalBase.Variables)
                     {
                         var masked = v.IsSecret && !_revealed.Contains(v.Id);
                         <div class="var-row">
@@ -53,9 +46,44 @@
                             <button class="icon-btn" @onclick="() => RemoveVar(v)">✕</button>
                         </div>
                     }
-                    <button class="link-btn" @onclick="AddVar">+ add variable</button>
+                    <button class="link-btn" @onclick="AddBaseVar">+ add base variable</button>
                 </div>
             }
+            <div class="var-list" style="margin-top:0.5rem">
+                <div class="var-list-header"><span>Sub-sets</span></div>
+                <div class="env-actions">
+                    <input placeholder="New sub-set name" @bind="_newEnvName" @bind:event="oninput" />
+                    <button @onclick="AddSubset" disabled="@string.IsNullOrWhiteSpace(_newEnvName)">Add</button>
+                </div>
+                @foreach (var s in _globalSubsets)
+                {
+                    <div class="var-list" style="margin-top:0.3rem">
+                        <div class="var-list-header">
+                            <span>@s.Name</span>
+                            <button class="link-btn" @onclick="() => DeleteSubset(s)">delete</button>
+                        </div>
+                        @foreach (var v in s.Variables)
+                        {
+                            var masked = v.IsSecret && !_revealed.Contains(v.Id);
+                            <div class="var-row">
+                                <input placeholder="key" value="@v.Key" @oninput="e => OnVarKeyChanged(v, e)" />
+                                <input placeholder="value" type="@(masked ? "password" : "text")"
+                                       value="@v.Value" @oninput="e => OnVarValueChanged(v, e)" />
+                                @if (v.IsSecret)
+                                {
+                                    <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
+                                            @onclick="() => ToggleReveal(v)">@(masked ? "👁" : "🚫")</button>
+                                }
+                                <button class="icon-btn @(v.IsSecret ? "active" : "")"
+                                        title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
+                                        @onclick="() => ToggleSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
+                                <button class="icon-btn" @onclick="() => RemoveVar(v)">✕</button>
+                            </div>
+                        }
+                        <button class="link-btn" @onclick="() => AddSubsetVar(s)">+ add variable</button>
+                    </div>
+                }
+            </div>
         </div>
     }
 </div>
@@ -145,8 +173,8 @@
 
 @code {
     private List<Collection> _collections = new();
-    private List<AppEnvironment> _environments = new();
-    private AppEnvironment? _selectedEnv;
+    private AppEnvironment? _globalBase;
+    private List<AppEnvironment> _globalSubsets = new();
     private HashSet<int> _expanded = new();
     private bool _showAddCollection;
     private string _newCollectionName = string.Empty;
@@ -159,7 +187,15 @@
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
+        await LoadSettingsAsync();
         await ReloadAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.FirstOrDefaultAsync(s => s.Id == 1);
+        State.SelectedEnvironmentId = settings?.ActiveGlobalSubsetId;
     }
 
     public void Dispose()
@@ -188,13 +224,12 @@
             .Include(c => c.Variables)
             .OrderBy(c => c.Name)
             .ToListAsync();
-        _environments = await db.Environments
+        var envs = await db.Environments
             .Include(e => e.Variables)
             .OrderBy(e => e.Name)
             .ToListAsync();
-        _selectedEnv = State.SelectedEnvironmentId is int id
-            ? _environments.FirstOrDefault(e => e.Id == id)
-            : null;
+        _globalBase = envs.FirstOrDefault(e => e.IsBase);
+        _globalSubsets = envs.Where(e => !e.IsBase).ToList();
     }
 
     private void ToggleCollection(int id)
@@ -329,53 +364,67 @@
         State.NotifyChanged();
     }
 
-    private async Task OnEnvChanged(ChangeEventArgs e)
+    private async Task OnSubsetChanged(ChangeEventArgs e)
     {
-        var v = e.Value?.ToString();
-        State.SelectedEnvironmentId = int.TryParse(v, out var id) ? id : null;
-        _selectedEnv = State.SelectedEnvironmentId is int sid
-            ? _environments.FirstOrDefault(env => env.Id == sid)
-            : null;
+        var id = int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null;
+        State.SelectedEnvironmentId = id;
+        using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.FirstAsync(s => s.Id == 1);
+        settings.ActiveGlobalSubsetId = id;
+        await db.SaveChangesAsync();
         State.NotifyChanged();
-        await Task.CompletedTask;
     }
 
     private void ToggleEnvEditor() => _showEnvEditor = !_showEnvEditor;
 
-    private async Task AddEnvironment()
+    private async Task AddSubset()
     {
         if (string.IsNullOrWhiteSpace(_newEnvName)) return;
         using var db = await DbFactory.CreateDbContextAsync();
-        var env = new AppEnvironment { Name = _newEnvName.Trim() };
+        var env = new AppEnvironment { Name = _newEnvName.Trim(), IsBase = false };
         db.Environments.Add(env);
         await db.SaveChangesAsync();
         _newEnvName = string.Empty;
         State.SelectedEnvironmentId = env.Id;
+        var settings = await db.Settings.FirstAsync(s => s.Id == 1);
+        settings.ActiveGlobalSubsetId = env.Id;
+        await db.SaveChangesAsync();
         State.NotifyChanged();
         await ReloadAsync();
     }
 
-    private async Task DeleteSelectedEnv()
+    private async Task DeleteSubset(AppEnvironment s)
     {
-        if (_selectedEnv is null) return;
-        var msg = _selectedEnv.Variables.Count > 0
-            ? $"Delete environment \"{_selectedEnv.Name}\" and its {_selectedEnv.Variables.Count} variable(s)?"
-            : $"Delete environment \"{_selectedEnv.Name}\"?";
+        var msg = s.Variables.Count > 0
+            ? $"Delete sub-set \"{s.Name}\" and its {s.Variables.Count} variable(s)?"
+            : $"Delete sub-set \"{s.Name}\"?";
         if (!await Confirm(msg)) return;
         using var db = await DbFactory.CreateDbContextAsync();
-        db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == _selectedEnv.Id));
+        db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == s.Id));
+        if (State.SelectedEnvironmentId == s.Id)
+        {
+            State.SelectedEnvironmentId = null;
+            var settings = await db.Settings.FirstAsync(x => x.Id == 1);
+            settings.ActiveGlobalSubsetId = null;
+        }
         await db.SaveChangesAsync();
-        State.SelectedEnvironmentId = null;
         State.NotifyChanged();
         await ReloadAsync();
     }
 
-    private async Task AddVar()
+    private async Task AddBaseVar()
     {
-        if (_selectedEnv is null) return;
+        if (_globalBase is null) return;
         using var db = await DbFactory.CreateDbContextAsync();
-        var v = new EnvironmentVariable { AppEnvironmentId = _selectedEnv.Id, Key = "", Value = "" };
-        db.EnvironmentVariables.Add(v);
+        db.EnvironmentVariables.Add(new EnvironmentVariable { AppEnvironmentId = _globalBase.Id });
+        await db.SaveChangesAsync();
+        await ReloadAsync();
+    }
+
+    private async Task AddSubsetVar(AppEnvironment s)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Add(new EnvironmentVariable { AppEnvironmentId = s.Id });
         await db.SaveChangesAsync();
         await ReloadAsync();
     }
