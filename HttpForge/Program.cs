@@ -20,6 +20,7 @@ builder.Services.AddHttpClient("forge")
 
 builder.Services.AddScoped<RequestExecutor>();
 builder.Services.AddScoped<VariableResolver>();
+builder.Services.AddScoped<InsomniaImporter>();
 builder.Services.AddScoped<AppState>();
 
 var app = builder.Build();
