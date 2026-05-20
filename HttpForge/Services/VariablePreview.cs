@@ -30,4 +30,16 @@ public static partial class VariablePreview
         }
         return string.Join("\n", lines);
     }
+
+    public static string Resolve(string? input, IReadOnlyList<ResolvedVariableEntry> variables)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        return Pattern().Replace(input, m =>
+        {
+            var key = m.Groups[1].Value;
+            var found = variables.FirstOrDefault(
+                v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
+            return found is { IsSecret: false } ? found.Value : m.Value;
+        });
+    }
 }

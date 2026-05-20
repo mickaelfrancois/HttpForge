@@ -41,6 +41,11 @@ else
             </button>
         </div>
 
+        @if (_request.Url?.Contains("{{") == true)
+        {
+            <div class="url-preview">@VariablePreview.Resolve(_request.Url, _resolvedVariables)</div>
+        }
+
         <div class="tabs">
             @foreach (var t in _tabs)
             {
