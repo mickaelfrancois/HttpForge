@@ -2,18 +2,19 @@ using HttpForge.Data;
 using HttpForge.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
+using System.Text.Json.Serialization;
 
 namespace HttpForge.Services;
 
 public record ScriptMutations(
-    Dictionary<string, string> Request,
-    Dictionary<string, string> Collection,
-    Dictionary<string, string> Global);
+    [property: JsonPropertyName("request")]  Dictionary<string, string> Request,
+    [property: JsonPropertyName("collection")] Dictionary<string, string> Collection,
+    [property: JsonPropertyName("global")]   Dictionary<string, string> Global);
 
 public record ScriptResult(
-    ScriptMutations Mutations,
-    List<string> Logs,
-    string? Error);
+    [property: JsonPropertyName("mutations")] ScriptMutations Mutations,
+    [property: JsonPropertyName("logs")]      List<string> Logs,
+    [property: JsonPropertyName("error")]     string? Error);
 
 public class ScriptRunner(IJSRuntime js, IDbContextFactory<AppDbContext> dbFactory, AppState state)
 {

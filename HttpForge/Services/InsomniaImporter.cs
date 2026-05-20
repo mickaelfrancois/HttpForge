@@ -220,6 +220,9 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
                 warnings.Add($"Request '{node.Name}': unrecognized body type '{mimeType}', imported as Raw");
         }
 
+        if (!string.IsNullOrWhiteSpace(node.AfterResponseScript))
+            req.PostScript = node.AfterResponseScript;
+
         return req;
     }
 
@@ -282,6 +285,7 @@ public class InsomniaNode
     public InsomniaBody? Body { get; set; }
     public InsomniaAuth? Authentication { get; set; }
     public List<InsomniaNode>? Children { get; set; }
+    public string? AfterResponseScript { get; set; }
 }
 
 public class InsomniaHeader
