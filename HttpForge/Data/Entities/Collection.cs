@@ -8,5 +8,4 @@ public class Collection
     public int? ActiveCollectionVariableSetId { get; set; }
     public List<HttpRequestItem> Requests { get; set; } = new();
     public List<CollectionVariableSet> VariableSets { get; set; } = new();
-    public List<CollectionVariable> Variables { get; set; } = new(); // kept until Task 4 cleanup
 }

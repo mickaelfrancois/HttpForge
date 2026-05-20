@@ -29,12 +29,6 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<Collection>()
-            .HasMany(c => c.Variables)
-            .WithOne()
-            .HasForeignKey(v => v.CollectionId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        b.Entity<Collection>()
             .HasMany(c => c.VariableSets)
             .WithOne()
             .HasForeignKey(s => s.CollectionId)

@@ -263,3 +263,14 @@ button:disabled {
     padding: 0.5rem 1rem;
     font-style: italic;
 }
+
+.subset-badge {
+    font-size: 0.6rem;
+    background: var(--accent-orange);
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    margin-left: 2px;
+    opacity: 0.85;
+}

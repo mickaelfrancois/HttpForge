@@ -110,6 +110,13 @@
                 <button class="collection-toggle" @onclick="() => ToggleCollection(c.Id)">
                     <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
                     <span>@c.Name</span>
+                    @{
+                        var activeBadgeSet = c.VariableSets.FirstOrDefault(s => s.Id == c.ActiveCollectionVariableSetId);
+                    }
+                    @if (activeBadgeSet is not null)
+                    {
+                        <span class="subset-badge">@activeBadgeSet.Name</span>
+                    }
                 </button>
                 <button class="icon-btn @(_collVarEditorOpen.Contains(c.Id) ? "active" : "")"
                         title="Variables" @onclick="() => ToggleCollVarEditor(c.Id)">⚙</button>
@@ -118,29 +125,78 @@
             </div>
             @if (_collVarEditorOpen.Contains(c.Id))
             {
+                var cBase = c.VariableSets.FirstOrDefault(s => s.IsBase);
+                var cSubsets = c.VariableSets.Where(s => !s.IsBase).ToList();
+                var activeSet = c.VariableSets.FirstOrDefault(s => s.Id == c.ActiveCollectionVariableSetId && !s.IsBase);
+
                 <div class="env-editor">
                     <div class="var-list">
-                        @foreach (var v in c.Variables)
+                        <div class="var-list-header"><span>Base</span></div>
+                        @foreach (var v in cBase?.Entries ?? [])
                         {
-                            var masked = v.IsSecret && !_collVarRevealed.Contains(v.Id);
+                            var masked = v.IsSecret && !_collVarEntryRevealed.Contains(v.Id);
                             <div class="var-row">
                                 <input placeholder="key" value="@v.Key"
-                                       @oninput="e => OnCollVarKeyChanged(v, e)" />
+                                       @oninput="e => OnCollEntryKeyChanged(v, e)" />
                                 <input placeholder="value" type="@(masked ? "password" : "text")"
                                        value="@v.Value"
-                                       @oninput="e => OnCollVarValueChanged(v, e)" />
+                                       @oninput="e => OnCollEntryValueChanged(v, e)" />
                                 @if (v.IsSecret)
                                 {
                                     <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
-                                            @onclick="() => ToggleCollVarReveal(v)">@(masked ? "👁" : "🚫")</button>
+                                            @onclick="() => ToggleCollEntryReveal(v)">@(masked ? "👁" : "🚫")</button>
                                 }
                                 <button class="icon-btn @(v.IsSecret ? "active" : "")"
                                         title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
-                                        @onclick="() => ToggleCollVarSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
-                                <button class="icon-btn" @onclick="() => RemoveCollVar(v, c.Id)">✕</button>
+                                        @onclick="() => ToggleCollEntrySecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
+                                <button class="icon-btn" @onclick="() => RemoveCollEntry(v)">✕</button>
                             </div>
                         }
-                        <button class="link-btn" @onclick="() => AddCollVar(c.Id)">+ add variable</button>
+                        <button class="link-btn" @onclick="() => AddCollBaseEntry(c.Id)">+ add base variable</button>
+                    </div>
+
+                    <div class="var-list" style="margin-top:0.5rem">
+                        <div class="var-list-header"><span>Sub-set</span></div>
+                        <div class="env-row">
+                            <select value="@(c.ActiveCollectionVariableSetId?.ToString() ?? "")"
+                                    @onchange="e => OnCollSubsetChanged(c, e)">
+                                <option value="">— none —</option>
+                                @foreach (var s in cSubsets)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </select>
+                            <button class="icon-btn" title="New sub-set" @onclick="() => AddCollSubset(c.Id)">+</button>
+                            @if (activeSet is not null)
+                            {
+                                <button class="icon-btn" title="Delete sub-set"
+                                        @onclick="() => DeleteCollSubset(c, activeSet)">🗑</button>
+                            }
+                        </div>
+                        @if (activeSet is not null)
+                        {
+                            @foreach (var v in activeSet.Entries)
+                            {
+                                var masked = v.IsSecret && !_collVarEntryRevealed.Contains(v.Id);
+                                <div class="var-row">
+                                    <input placeholder="key" value="@v.Key"
+                                           @oninput="e => OnCollEntryKeyChanged(v, e)" />
+                                    <input placeholder="value" type="@(masked ? "password" : "text")"
+                                           value="@v.Value"
+                                           @oninput="e => OnCollEntryValueChanged(v, e)" />
+                                    @if (v.IsSecret)
+                                    {
+                                        <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
+                                                @onclick="() => ToggleCollEntryReveal(v)">@(masked ? "👁" : "🚫")</button>
+                                    }
+                                    <button class="icon-btn @(v.IsSecret ? "active" : "")"
+                                            title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
+                                            @onclick="() => ToggleCollEntrySecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
+                                    <button class="icon-btn" @onclick="() => RemoveCollEntry(v)">✕</button>
+                                </div>
+                            }
+                            <button class="link-btn" @onclick="() => AddCollSubsetEntry(activeSet.Id)">+ add variable</button>
+                        }
                     </div>
                 </div>
             }
@@ -182,7 +238,7 @@
     private string _newEnvName = string.Empty;
     private HashSet<int> _revealed = new();
     private HashSet<int> _collVarEditorOpen = new();
-    private HashSet<int> _collVarRevealed = new();
+    private HashSet<int> _collVarEntryRevealed = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -221,7 +277,7 @@
         using var db = await DbFactory.CreateDbContextAsync();
         _collections = await db.Collections
             .Include(c => c.Requests)
-            .Include(c => c.Variables)
+            .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
             .OrderBy(c => c.Name)
             .ToListAsync();
         var envs = await db.Environments
@@ -480,56 +536,120 @@
             _collVarEditorOpen.Remove(collectionId);
     }
 
-    private async Task AddCollVar(int collectionId)
+    private async Task OnCollSubsetChanged(Collection c, ChangeEventArgs e)
     {
+        var id = int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null;
+        c.ActiveCollectionVariableSetId = id;
         using var db = await DbFactory.CreateDbContextAsync();
-        var v = new CollectionVariable { CollectionId = collectionId, Key = "", Value = "" };
-        db.CollectionVariables.Add(v);
+        var col = await db.Collections.FirstAsync(x => x.Id == c.Id);
+        col.ActiveCollectionVariableSetId = id;
         await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task AddCollSubset(int collectionId)
+    {
+        var name = await JS.InvokeAsync<string?>("prompt", "Sub-set name:");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        var set = new CollectionVariableSet { CollectionId = collectionId, Name = name.Trim(), IsBase = false };
+        db.CollectionVariableSets.Add(set);
+        await db.SaveChangesAsync();
+        var col = await db.Collections.FirstAsync(x => x.Id == collectionId);
+        col.ActiveCollectionVariableSetId = set.Id;
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
         await ReloadAsync();
     }
 
-    private async Task RemoveCollVar(CollectionVariable v, int collectionId)
+    private async Task DeleteCollSubset(Collection c, CollectionVariableSet s)
+    {
+        var msg = s.Entries.Count > 0
+            ? $"Delete sub-set \"{s.Name}\" and its {s.Entries.Count} variable(s)?"
+            : $"Delete sub-set \"{s.Name}\"?";
+        if (!await Confirm(msg)) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionVariableSets.Remove(await db.CollectionVariableSets.FirstAsync(x => x.Id == s.Id));
+        var wasActive = c.ActiveCollectionVariableSetId == s.Id;
+        if (wasActive)
+        {
+            var col = await db.Collections.FirstAsync(x => x.Id == c.Id);
+            col.ActiveCollectionVariableSetId = null;
+        }
+        await db.SaveChangesAsync();
+        if (wasActive) c.ActiveCollectionVariableSetId = null;
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task AddCollBaseEntry(int collectionId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var baseSet = await db.CollectionVariableSets
+            .FirstOrDefaultAsync(s => s.CollectionId == collectionId && s.IsBase);
+        if (baseSet is null)
+        {
+            baseSet = new CollectionVariableSet { CollectionId = collectionId, Name = "Base", IsBase = true };
+            db.CollectionVariableSets.Add(baseSet);
+            await db.SaveChangesAsync();
+        }
+        db.CollectionVariableEntries.Add(new CollectionVariableEntry { CollectionVariableSetId = baseSet.Id });
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task AddCollSubsetEntry(int setId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionVariableEntries.Add(new CollectionVariableEntry { CollectionVariableSetId = setId });
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task RemoveCollEntry(CollectionVariableEntry v)
     {
         var label = string.IsNullOrWhiteSpace(v.Key) ? "(empty)" : v.Key;
         if (!await Confirm($"Delete variable \"{label}\"?")) return;
         using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariables.Remove(await db.CollectionVariables.FirstAsync(x => x.Id == v.Id));
+        db.CollectionVariableEntries.Remove(await db.CollectionVariableEntries.FirstAsync(x => x.Id == v.Id));
         await db.SaveChangesAsync();
+        State.NotifyChanged();
         await ReloadAsync();
     }
 
-    private async Task OnCollVarKeyChanged(CollectionVariable v, ChangeEventArgs e)
+    private async Task OnCollEntryKeyChanged(CollectionVariableEntry v, ChangeEventArgs e)
     {
         v.Key = e.Value?.ToString() ?? "";
         using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariables.Update(v);
+        db.CollectionVariableEntries.Update(v);
         await db.SaveChangesAsync();
         State.NotifyChanged();
     }
 
-    private async Task OnCollVarValueChanged(CollectionVariable v, ChangeEventArgs e)
+    private async Task OnCollEntryValueChanged(CollectionVariableEntry v, ChangeEventArgs e)
     {
         v.Value = e.Value?.ToString() ?? "";
         using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariables.Update(v);
+        db.CollectionVariableEntries.Update(v);
         await db.SaveChangesAsync();
         State.NotifyChanged();
     }
 
-    private async Task ToggleCollVarSecret(CollectionVariable v)
+    private async Task ToggleCollEntrySecret(CollectionVariableEntry v)
     {
         v.IsSecret = !v.IsSecret;
-        if (!v.IsSecret) _collVarRevealed.Remove(v.Id);
+        if (!v.IsSecret) _collVarEntryRevealed.Remove(v.Id);
         using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariables.Update(v);
+        db.CollectionVariableEntries.Update(v);
         await db.SaveChangesAsync();
         State.NotifyChanged();
     }
 
-    private void ToggleCollVarReveal(CollectionVariable v)
+    private void ToggleCollEntryReveal(CollectionVariableEntry v)
     {
-        if (!_collVarRevealed.Add(v.Id)) _collVarRevealed.Remove(v.Id);
+        if (!_collVarEntryRevealed.Add(v.Id)) _collVarEntryRevealed.Remove(v.Id);
         StateHasChanged();
     }
 
