@@ -151,6 +151,17 @@ else
                                   OnRemove="RemoveRequestVarAsync"
                                   EnvVariables="_resolvedVariables" />
                     break;
+                case "Scripts":
+                    <div class="scripts-tab">
+                        <div class="script-section-label">Post-request script</div>
+                        <ScriptEditor Value="@_request.PostScript"
+                                      ValueChanged="OnPostScriptChanged" />
+                        <div class="script-hint">
+                            Use <code>fg.response.json()</code>, <code>fg.variables.set("key", value)</code>.
+                            <code>async/await</code> supported.
+                        </div>
+                    </div>
+                    break;
             }
         </div>
 
@@ -205,7 +216,7 @@ else
     private bool _sending;
     private string _activeTab = "Params";
     private string _responseTab = "Body";
-    private readonly string[] _tabs = ["Params", "Headers", "Body", "Variables"];
+    private readonly string[] _tabs = ["Params", "Headers", "Body", "Variables", "Scripts"];
 
     protected override async Task OnInitializedAsync()
     {
@@ -318,6 +329,13 @@ else
     {
         if (_request is null) return;
         _request.BodyContent = value;
+    }
+
+    private async Task OnPostScriptChanged(string value)
+    {
+        if (_request is null) return;
+        _request.PostScript = value;
+        await SaveRequestDebounced();
     }
 
     private async Task OnBodyKindChanged(BodyKind kind)
