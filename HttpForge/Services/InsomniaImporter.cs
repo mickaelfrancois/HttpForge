@@ -16,6 +16,11 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         """\{\{\s*_(?:\[['"]([^'"]+)['"]\]|\.(?:vault\.)?([A-Za-z0-9_\-]+))\s*\}\}""",
         RegexOptions.Compiled);
 
+    private static readonly IDeserializer Deserializer = new DeserializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()
+        .Build();
+
     private static string TransformVars(string? input)
     {
         if (string.IsNullOrEmpty(input)) return string.Empty;
@@ -33,12 +38,7 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         using var reader = new StreamReader(content);
         var yaml = await reader.ReadToEndAsync();
 
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
-        var file = deserializer.Deserialize<InsomniaFile>(yaml);
+        var file = Deserializer.Deserialize<InsomniaFile>(yaml);
 
         if (file.Meta?.Id == "wrk_scratchpad")
             return new ImportResult(filename, 0, 0, warnings);
@@ -70,42 +70,51 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         db.Collections.Add(collection);
         await db.SaveChangesAsync();
 
-        int requestCount = 0;
-        int varCount = 0;
-
-        foreach (var node in FlattenNodes(file.Collection ?? []))
+        try
         {
-            db.Requests.Add(MapRequest(node, collection.Id, warnings));
-            requestCount++;
-        }
+            int requestCount = 0;
+            int varCount = 0;
 
-        if (file.Environments is not null)
-        {
-            var baseSet = new CollectionVariableSet
+            foreach (var node in FlattenNodes(file.Collection ?? []))
             {
-                CollectionId = collection.Id,
-                Name = "Base",
-                IsBase = true,
-                Entries = MapVarEntries(file.Environments.Data, warnings)
-            };
-            varCount += baseSet.Entries.Count;
-            db.CollectionVariableSets.Add(baseSet);
+                db.Requests.Add(MapRequest(node, collection.Id, warnings));
+                requestCount++;
+            }
 
-            foreach (var sub in file.Environments.SubEnvironments ?? [])
+            if (file.Environments is not null)
             {
-                var subSet = new CollectionVariableSet
+                var baseSet = new CollectionVariableSet
                 {
                     CollectionId = collection.Id,
-                    Name = sub.Name ?? "Sub",
-                    IsBase = false,
-                    Entries = MapVarEntries(sub.Data, warnings)
+                    Name = "Base",
+                    IsBase = true,
+                    Entries = MapVarEntries(file.Environments.Data, warnings)
                 };
-                varCount += subSet.Entries.Count;
-                db.CollectionVariableSets.Add(subSet);
-            }
-        }
+                varCount += baseSet.Entries.Count;
+                db.CollectionVariableSets.Add(baseSet);
 
-        return (requestCount, varCount);
+                foreach (var sub in file.Environments.SubEnvironments ?? [])
+                {
+                    var subSet = new CollectionVariableSet
+                    {
+                        CollectionId = collection.Id,
+                        Name = sub.Name ?? "Sub",
+                        IsBase = false,
+                        Entries = MapVarEntries(sub.Data, warnings)
+                    };
+                    varCount += subSet.Entries.Count;
+                    db.CollectionVariableSets.Add(subSet);
+                }
+            }
+
+            return (requestCount, varCount);
+        }
+        catch
+        {
+            db.Collections.Remove(collection);
+            await db.SaveChangesAsync();
+            throw;
+        }
     }
 
     private static async Task<int> ImportGlobalEnvAsync(
@@ -127,6 +136,11 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
 
         foreach (var (key, value) in NonVaultEntries(file.Environments.Data, warnings))
         {
+            if (globalBase.Variables.Any(v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase)))
+            {
+                warnings.Add($"Global variable '{key}' already exists, skipped");
+                continue;
+            }
             globalBase.Variables.Add(new EnvironmentVariable { Key = key, Value = value });
             count++;
         }
@@ -236,7 +250,12 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         if (data is null) yield break;
         foreach (var (key, val) in data)
         {
-            if (key == "__insomnia_vault") { warnings.Add("Vault entries skipped (encrypted, unrecoverable)"); continue; }
+            if (key == "__insomnia_vault")
+            {
+                if (!warnings.Contains("Vault entries skipped (encrypted, unrecoverable)"))
+                    warnings.Add("Vault entries skipped (encrypted, unrecoverable)");
+                continue;
+            }
             yield return (key, val?.ToString() ?? "");
         }
     }
