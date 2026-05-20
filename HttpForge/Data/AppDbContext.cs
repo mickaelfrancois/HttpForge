@@ -69,5 +69,7 @@ public class AppDbContext : DbContext
             .WithOne()
             .HasForeignKey(v => v.AppEnvironmentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<AppSettings>().ToTable("AppSettings");
     }
 }
