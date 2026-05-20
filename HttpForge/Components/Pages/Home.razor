@@ -3,6 +3,7 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
 @inject RequestExecutor Executor
+@inject IJSRuntime JS
 @implements IDisposable
 
 <PageTitle>HttpForge</PageTitle>
@@ -44,10 +45,17 @@ else
         @{
             var _hasParams = _request.QueryParams.Any(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key));
             var _showPreview = !string.IsNullOrWhiteSpace(_request.Url) && (_request.Url.Contains("{{") || _hasParams);
+            var _previewUrl = _showPreview ? VariablePreview.BuildFullUrl(_request.Url, _request.QueryParams, _resolvedVariables) : string.Empty;
         }
         @if (_showPreview)
         {
-            <div class="url-preview">@VariablePreview.BuildFullUrl(_request.Url, _request.QueryParams, _resolvedVariables)</div>
+            <div class="url-preview-panel">
+                <div class="url-preview-header">
+                    <span>Resolved URL</span>
+                    <button class="url-preview-copy" title="Copy URL" @onclick="() => CopyUrlAsync(_previewUrl)">⎘ Copy</button>
+                </div>
+                <div class="url-preview">@_previewUrl</div>
+            </div>
         }
 
         <div class="tabs">
@@ -277,6 +285,12 @@ else
     }
 
     private string Tooltip(string? text) => VariablePreview.Build(text, _resolvedVariables);
+
+    private async Task CopyUrlAsync(string url)
+    {
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", url); }
+        catch { /* clipboard unavailable (non-HTTPS or denied) */ }
+    }
 
     private void OnNameInput(ChangeEventArgs e)
     {

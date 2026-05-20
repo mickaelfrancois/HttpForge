@@ -259,10 +259,45 @@
     font-size: 0.85rem;
 }
 
-.url-preview {
-    font-size: 0.75rem;
+.url-preview-panel {
+    margin: 0 1rem 0.4rem;
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    overflow: hidden;
+}
+
+.url-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.2rem 0.5rem;
+    border-bottom: 1px solid var(--border-main);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--text-muted);
+}
+
+.url-preview-copy {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+}
+
+.url-preview-copy:hover {
+    color: var(--text-primary);
+    background: var(--bg-input-dark);
+}
+
+.url-preview {
+    font-size: 0.8rem;
+    color: var(--text-dim);
     font-family: 'Consolas', monospace;
-    padding: 2px 1rem 4px;
+    padding: 0.35rem 0.6rem;
     word-break: break-all;
 }
