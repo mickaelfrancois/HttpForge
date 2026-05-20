@@ -401,13 +401,14 @@
         if (!await Confirm(msg)) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == s.Id));
-        if (State.SelectedEnvironmentId == s.Id)
+        var wasActive = State.SelectedEnvironmentId == s.Id;
+        if (wasActive)
         {
-            State.SelectedEnvironmentId = null;
             var settings = await db.Settings.FirstAsync(x => x.Id == 1);
             settings.ActiveGlobalSubsetId = null;
         }
         await db.SaveChangesAsync();
+        if (wasActive) State.SelectedEnvironmentId = null;
         State.NotifyChanged();
         await ReloadAsync();
     }
