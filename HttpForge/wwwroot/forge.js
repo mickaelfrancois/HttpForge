@@ -64,8 +64,15 @@ window.forge.theme = {
 
 window.forge.sidebar = {
     init(sidebarEl, handleEl) {
+        if (!sidebarEl || !handleEl) return;
+        if (handleEl._forgeInitialized) return;
+        handleEl._forgeInitialized = true;
+
         const stored = localStorage.getItem('forge-sidebar-width');
-        if (stored) sidebarEl.style.width = stored + 'px';
+        if (stored) {
+            const w = Math.min(500, Math.max(200, parseInt(stored, 10)));
+            if (!isNaN(w)) sidebarEl.style.width = w + 'px';
+        }
 
         let startX = 0, startWidth = 0;
 
@@ -75,7 +82,7 @@ window.forge.sidebar = {
         };
 
         const onMouseUp = () => {
-            const w = parseInt(sidebarEl.style.width, 10);
+            const w = parseInt(sidebarEl.style.width, 10) || 320;
             localStorage.setItem('forge-sidebar-width', w);
             handleEl.classList.remove('dragging');
             document.removeEventListener('mousemove', onMouseMove);
