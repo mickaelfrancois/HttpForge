@@ -111,3 +111,43 @@ window.forge.sidebar = {
     const handle = document.querySelector('.forge-resize-handle');
     if (sidebar && handle) window.forge.sidebar.init(sidebar, handle);
 }());
+
+window.forge.scripts = {
+    async run(script, response, vars) {
+        const mutations = { request: {}, collection: {}, global: {} };
+        const logs = [];
+
+        const fg = {
+            response: {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers,
+                body: response.body,
+                json() {
+                    if (!response.body) throw new Error('Response body is empty');
+                    return JSON.parse(response.body);
+                }
+            },
+            variables: {
+                get(key) {
+                    return vars.request?.[key] ?? vars.collection?.[key] ?? vars.global?.[key];
+                },
+                set(key, value, scope = 'collection') {
+                    if (mutations[scope] === undefined) return;
+                    mutations[scope][key] = String(value);
+                }
+            },
+            console: {
+                log(...args) { logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')); }
+            }
+        };
+
+        try {
+            const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+            await new AsyncFunction('fg', script)(fg);
+            return { mutations, logs, error: null };
+        } catch (e) {
+            return { mutations, logs, error: e.message };
+        }
+    }
+};
