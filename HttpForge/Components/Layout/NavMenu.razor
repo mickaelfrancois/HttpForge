@@ -264,12 +264,12 @@
         try
         {
             await ReloadAsync();
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[HttpForge] NavMenu reload error: {ex.Message}");
         }
-        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ReloadAsync()
