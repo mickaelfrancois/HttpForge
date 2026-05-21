@@ -281,3 +281,19 @@ button:disabled {
     margin-left: 2px;
     opacity: 0.85;
 }
+
+.filter-box {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.4rem 1rem;
+}
+
+.filter-box input {
+    flex: 1;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.82rem;
+}

@@ -111,8 +111,18 @@
     </div>
 }
 
+<div class="filter-box">
+    <input placeholder="Filter..."
+           value="@_filterText"
+           @oninput="e => _filterText = e.Value?.ToString() ?? string.Empty" />
+    @if (!string.IsNullOrEmpty(_filterText))
+    {
+        <button class="icon-btn" title="Clear filter" @onclick="() => _filterText = string.Empty">✕</button>
+    }
+</div>
+
 <div class="collection-tree">
-    @foreach (var c in _collections)
+    @foreach (var c in _collections.Where(c => CollectionHasMatch(c)))
     {
         <div class="collection-node">
             <div class="collection-header">
@@ -219,14 +229,15 @@
                     </div>
                 </div>
             }
-            @if (_expanded.Contains(c.Id))
+            @if (_expanded.Contains(c.Id) || !string.IsNullOrWhiteSpace(_filterText))
             {
                 <div class="request-list" data-drop="collection:@c.Id">
                     <CollectionNode CollectionId="c.Id"
                                     ParentFolderId="@((int?)null)"
                                     AllFolders="_allFolders.Where(f => f.CollectionId == c.Id).ToList()"
                                     AllRequests="c.Requests"
-                                    OnChanged="ReloadAndNotify" />
+                                    OnChanged="ReloadAndNotify"
+                                    FilterText="@(c.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ? string.Empty : _filterText)" />
                     @if (!c.Requests.Any(r => r.FolderId == null) &&
                          !_allFolders.Any(f => f.CollectionId == c.Id))
                     {
@@ -248,6 +259,7 @@
     private AppEnvironment? _globalBase;
     private List<AppEnvironment> _globalSubsets = new();
     private HashSet<int> _expanded = new();
+    private string _filterText = string.Empty;
     private bool _showAddCollection;
     private string _newCollectionName = string.Empty;
     private bool _showEnvEditor;
@@ -813,6 +825,16 @@
     {
         if (!_collVarEntryRevealed.Add(v.Id)) _collVarEntryRevealed.Remove(v.Id);
         StateHasChanged();
+    }
+
+    private bool CollectionHasMatch(Collection c)
+    {
+        if (string.IsNullOrWhiteSpace(_filterText)) return true;
+        if (c.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase)) return true;
+        if (c.Requests.Any(r => r.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase))) return true;
+        if (_allFolders.Any(f => f.CollectionId == c.Id
+            && f.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase))) return true;
+        return false;
     }
 
     private ValueTask<bool> Confirm(string message)
