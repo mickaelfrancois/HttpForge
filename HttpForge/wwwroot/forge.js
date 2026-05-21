@@ -187,3 +187,73 @@ window.forge.editor = {
         this._instances.delete(textareaEl);
     }
 };
+
+window.forge.dnd = {
+    _ref: null,
+    _dragValue: null,
+    _handlers: null,
+
+    init(dotnetRef) {
+        this._ref = dotnetRef;
+        this._dragValue = null;
+
+        const onDragStart = (e) => {
+            const el = e.target.closest('[data-drag]');
+            if (!el) return;
+            this._dragValue = el.dataset.drag;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this._dragValue);
+        };
+
+        const onDragOver = (e) => {
+            if (!this._dragValue) return;
+            const el = e.target.closest('[data-drop]');
+            if (!el) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+            el.classList.add('drag-over');
+        };
+
+        const onDragLeave = (e) => {
+            const el = e.target.closest('[data-drop]');
+            if (el && !el.contains(e.relatedTarget)) el.classList.remove('drag-over');
+        };
+
+        const onDragEnd = () => {
+            document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+            this._dragValue = null;
+        };
+
+        const onDrop = (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+            const el = e.target.closest('[data-drop]');
+            if (!el || !this._dragValue) return;
+            const dropValue = el.dataset.drop;
+            const drag = this._dragValue;
+            this._dragValue = null;
+            this._ref.invokeMethodAsync('OnDrop', drag, dropValue);
+        };
+
+        this._handlers = { onDragStart, onDragOver, onDragLeave, onDragEnd, onDrop };
+        document.addEventListener('dragstart', onDragStart);
+        document.addEventListener('dragover', onDragOver);
+        document.addEventListener('dragleave', onDragLeave);
+        document.addEventListener('dragend', onDragEnd);
+        document.addEventListener('drop', onDrop);
+    },
+
+    dispose() {
+        if (!this._handlers) return;
+        const h = this._handlers;
+        document.removeEventListener('dragstart', h.onDragStart);
+        document.removeEventListener('dragover', h.onDragOver);
+        document.removeEventListener('dragleave', h.onDragLeave);
+        document.removeEventListener('dragend', h.onDragEnd);
+        document.removeEventListener('drop', h.onDrop);
+        this._handlers = null;
+        this._ref = null;
+        this._dragValue = null;
+    }
+};
