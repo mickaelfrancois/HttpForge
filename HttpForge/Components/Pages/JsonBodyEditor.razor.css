@@ -20,3 +20,8 @@
 .json-body-editor-wrap :deep(.CodeMirror-scroll) {
     min-height: 180px;
 }
+
+.json-body-editor-wrap :deep(.cm-string) { color: var(--json-string); }
+.json-body-editor-wrap :deep(.cm-property) { color: var(--json-key); }
+.json-body-editor-wrap :deep(.cm-number) { color: var(--json-number); }
+.json-body-editor-wrap :deep(.cm-atom) { color: var(--json-atom); }
