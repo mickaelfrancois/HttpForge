@@ -194,6 +194,7 @@ window.forge.dnd = {
     _handlers: null,
 
     init(dotnetRef) {
+        if (this._handlers) this.dispose();
         this._ref = dotnetRef;
         this._dragValue = null;
 
@@ -229,11 +230,11 @@ window.forge.dnd = {
             e.preventDefault();
             document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
             const el = e.target.closest('[data-drop]');
-            if (!el || !this._dragValue) return;
+            if (!el || !this._dragValue || !this._ref) return;
             const dropValue = el.dataset.drop;
             const drag = this._dragValue;
             this._dragValue = null;
-            this._ref.invokeMethodAsync('OnDrop', drag, dropValue);
+            this._ref.invokeMethodAsync('OnDrop', drag, dropValue).catch(() => {});
         };
 
         this._handlers = { onDragStart, onDragOver, onDragLeave, onDragEnd, onDrop };
