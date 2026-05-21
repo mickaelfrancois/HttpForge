@@ -212,15 +212,9 @@
             @if (_expanded.Contains(c.Id))
             {
                 <div class="request-list">
-                    @foreach (var r in c.Requests.OrderByDescending(r => r.UpdatedAt))
+                    @foreach (var r in c.Requests.Where(r => r.FolderId == null).OrderByDescending(r => r.UpdatedAt))
                     {
-                        <div class="request-row @(State.SelectedRequestId == r.Id ? "selected" : "")"
-                             @onclick="() => SelectRequest(r.Id)">
-                            <span class="method method-@r.Method.ToString().ToLower()">@r.Method</span>
-                            <span class="request-name">@(string.IsNullOrWhiteSpace(r.Name) ? "Untitled" : r.Name)</span>
-                            <button class="icon-btn" title="Duplicate request" @onclick:stopPropagation @onclick="() => DuplicateRequest(r)">⎘</button>
-                            <button class="icon-btn" title="Delete request" @onclick:stopPropagation @onclick="() => DeleteRequest(r)">✕</button>
-                        </div>
+                        <RequestRow Request="r" OnChanged="ReloadAndNotify" />
                     }
                     @if (c.Requests.Count == 0)
                     {
@@ -409,71 +403,10 @@
         await ReloadAsync();
     }
 
-    private async Task DeleteRequest(HttpRequestItem r)
+    private async Task ReloadAndNotify()
     {
-        var label = string.IsNullOrWhiteSpace(r.Name) ? "Untitled" : r.Name;
-        if (!await Confirm($"Delete request \"{label}\"?")) return;
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.Requests.Remove(await db.Requests.FirstAsync(x => x.Id == r.Id));
-        await db.SaveChangesAsync();
-        if (State.SelectedRequestId == r.Id)
-        {
-            State.SelectedRequestId = null;
-            State.NotifyChanged();
-        }
         await ReloadAsync();
-    }
-
-    private async Task DuplicateRequest(HttpRequestItem r)
-    {
-        using var db = await DbFactory.CreateDbContextAsync();
-        var source = await db.Requests
-            .Include(x => x.Headers)
-            .Include(x => x.QueryParams)
-            .Include(x => x.FormFields)
-            .Include(x => x.Variables)
-            .AsNoTracking()
-            .FirstAsync(x => x.Id == r.Id);
-
-        var copy = new HttpRequestItem
-        {
-            CollectionId = source.CollectionId,
-            Name = source.Name + " (copy)",
-            Method = source.Method,
-            Url = source.Url,
-            BodyKind = source.BodyKind,
-            BodyContent = source.BodyContent,
-            UpdatedAt = DateTime.UtcNow,
-            Headers = source.Headers.Select(h => new HeaderItem
-            {
-                Key = h.Key, Value = h.Value, Enabled = h.Enabled
-            }).ToList(),
-            QueryParams = source.QueryParams.Select(p => new QueryParamItem
-            {
-                Key = p.Key, Value = p.Value, Enabled = p.Enabled
-            }).ToList(),
-            FormFields = source.FormFields.Select(f => new FormFieldItem
-            {
-                Key = f.Key, Value = f.Value, Enabled = f.Enabled
-            }).ToList(),
-            Variables = source.Variables.Select(v => new RequestVariable
-            {
-                Key = v.Key, Value = v.Value, IsSecret = v.IsSecret
-            }).ToList()
-        };
-
-        db.Requests.Add(copy);
-        await db.SaveChangesAsync();
-        _expanded.Add(copy.CollectionId);
-        State.SelectedRequestId = copy.Id;
-        State.NotifyChanged();
-        await ReloadAsync();
-    }
-
-    private void SelectRequest(int id)
-    {
-        State.SelectedRequestId = id;
-        State.NotifyChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnSubsetChanged(ChangeEventArgs e)

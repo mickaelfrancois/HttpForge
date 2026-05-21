@@ -1,0 +1,74 @@
+@* HttpForge/Components/Layout/RequestRow.razor *@
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject AppState State
+@inject IJSRuntime JS
+
+<div class="request-row @(State.SelectedRequestId == Request.Id ? "selected" : "")"
+     draggable="true"
+     data-drag="request:@Request.Id"
+     @onclick="Select">
+    <span class="method method-@Request.Method.ToString().ToLower()">@Request.Method</span>
+    <span class="request-name">@(string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name)</span>
+    <button class="icon-btn" title="Duplicate request" @onclick:stopPropagation @onclick="Duplicate">⎘</button>
+    <button class="icon-btn" title="Delete request" @onclick:stopPropagation @onclick="Delete">✕</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public HttpRequestItem Request { get; set; } = null!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private void Select()
+    {
+        State.SelectedRequestId = Request.Id;
+        State.NotifyChanged();
+    }
+
+    private async Task Duplicate()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var source = await db.Requests
+            .Include(x => x.Headers)
+            .Include(x => x.QueryParams)
+            .Include(x => x.FormFields)
+            .Include(x => x.Variables)
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == Request.Id);
+
+        var copy = new HttpRequestItem
+        {
+            CollectionId = source.CollectionId,
+            FolderId = source.FolderId,
+            Name = source.Name + " (copy)",
+            Method = source.Method,
+            Url = source.Url,
+            BodyKind = source.BodyKind,
+            BodyContent = source.BodyContent,
+            UpdatedAt = DateTime.UtcNow,
+            Headers = source.Headers.Select(h => new HeaderItem { Key = h.Key, Value = h.Value, Enabled = h.Enabled }).ToList(),
+            QueryParams = source.QueryParams.Select(p => new QueryParamItem { Key = p.Key, Value = p.Value, Enabled = p.Enabled }).ToList(),
+            FormFields = source.FormFields.Select(f => new FormFieldItem { Key = f.Key, Value = f.Value, Enabled = f.Enabled }).ToList(),
+            Variables = source.Variables.Select(v => new RequestVariable { Key = v.Key, Value = v.Value, IsSecret = v.IsSecret }).ToList()
+        };
+        db.Requests.Add(copy);
+        await db.SaveChangesAsync();
+        State.SelectedRequestId = copy.Id;
+        State.NotifyChanged();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task Delete()
+    {
+        var label = string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete request \"{label}\"?")) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.Requests.Remove(await db.Requests.FirstAsync(x => x.Id == Request.Id));
+        await db.SaveChangesAsync();
+        if (State.SelectedRequestId == Request.Id)
+        {
+            State.SelectedRequestId = null;
+            State.NotifyChanged();
+        }
+        await OnChanged.InvokeAsync();
+    }
+}
