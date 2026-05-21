@@ -257,12 +257,22 @@
     private HashSet<int> _collVarEntryRevealed = new();
     private string? _importStatus;
     private bool _disposed;
+    private DotNetObjectReference<NavMenu>? _dndRef;
 
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
         await LoadSettingsAsync();
         await ReloadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dndRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("forge.dnd.init", _dndRef);
+        }
     }
 
     private async Task LoadSettingsAsync()
@@ -277,6 +287,108 @@
     {
         _disposed = true;
         State.OnChange -= OnStateChanged;
+        _dndRef?.Dispose();
+    }
+
+    [JSInvokable]
+    public async Task OnDrop(string drag, string drop)
+    {
+        if (!TryParseDnd(drag, out var dragType, out var dragId)) return;
+        if (!TryParseDnd(drop, out var dropType, out var dropId)) return;
+
+        int targetCollectionId;
+        int? targetFolderId;
+
+        if (dropType == "collection")
+        {
+            if (!_collections.Any(c => c.Id == dropId)) return;
+            targetCollectionId = dropId;
+            targetFolderId = null;
+        }
+        else // "folder"
+        {
+            var targetFolder = _allFolders.FirstOrDefault(f => f.Id == dropId);
+            if (targetFolder == null) return;
+            targetCollectionId = targetFolder.CollectionId;
+            targetFolderId = dropId;
+        }
+
+        if (dragType == "request")
+        {
+            await MoveRequestAsync(dragId, targetCollectionId, targetFolderId);
+        }
+        else // "folder"
+        {
+            if (dropType == "folder" && IsDescendantOrSelf(dragId, dropId)) return;
+            var dragged = _allFolders.FirstOrDefault(f => f.Id == dragId);
+            if (dragged == null) return;
+            if (dragged.ParentFolderId == targetFolderId && dragged.CollectionId == targetCollectionId) return;
+            await MoveFolderAsync(dragId, targetCollectionId, targetFolderId);
+        }
+
+        await ReloadAsync();
+        State.NotifyChanged();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static bool TryParseDnd(string value, out string type, out int id)
+    {
+        type = string.Empty; id = 0;
+        var idx = value.IndexOf(':');
+        if (idx < 1) return false;
+        type = value[..idx];
+        return int.TryParse(value[(idx + 1)..], out id);
+    }
+
+    private bool IsDescendantOrSelf(int folderId, int candidateId)
+    {
+        if (folderId == candidateId) return true;
+        var children = _allFolders.Where(f => f.ParentFolderId == folderId);
+        return children.Any(c => IsDescendantOrSelf(c.Id, candidateId));
+    }
+
+    private async Task MoveRequestAsync(int requestId, int targetCollectionId, int? targetFolderId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var req = await db.Requests.FirstOrDefaultAsync(r => r.Id == requestId);
+        if (req == null) return;
+        req.CollectionId = targetCollectionId;
+        req.FolderId = targetFolderId;
+        req.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    private async Task MoveFolderAsync(int folderId, int targetCollectionId, int? targetParentFolderId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var folder = await db.CollectionFolders.FirstOrDefaultAsync(f => f.Id == folderId);
+        if (folder == null) return;
+
+        var oldCollectionId = folder.CollectionId;
+        folder.CollectionId = targetCollectionId;
+        folder.ParentFolderId = targetParentFolderId;
+
+        if (oldCollectionId != targetCollectionId)
+            await UpdateDescendantsCollectionAsync(db, folderId, targetCollectionId);
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task UpdateDescendantsCollectionAsync(AppDbContext db, int folderId, int targetCollectionId)
+    {
+        var childFolders = await db.CollectionFolders
+            .Where(f => f.ParentFolderId == folderId)
+            .ToListAsync();
+        foreach (var child in childFolders)
+        {
+            child.CollectionId = targetCollectionId;
+            await UpdateDescendantsCollectionAsync(db, child.Id, targetCollectionId);
+        }
+        var childRequests = await db.Requests
+            .Where(r => r.FolderId == folderId)
+            .ToListAsync();
+        foreach (var r in childRequests)
+            r.CollectionId = targetCollectionId;
     }
 
     private async void OnStateChanged()
