@@ -91,11 +91,6 @@
 
 <div class="section-title">
     <span>Collections</span>
-    <label class="icon-btn" title="Import Insomnia YAML file(s)">
-        ↓
-        <InputFile accept=".yaml" multiple OnChange="OnImportFiles" style="display:none" />
-    </label>
-    <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
 </div>
 @if (_importStatus is not null)
 {
@@ -119,6 +114,11 @@
     {
         <button class="icon-btn" title="Clear filter" @onclick="() => _filterText = string.Empty">✕</button>
     }
+    <label class="icon-btn" title="Import Insomnia YAML file(s)">
+        ↓
+        <InputFile accept=".yaml" multiple OnChange="OnImportFiles" style="display:none" />
+    </label>
+    <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
 </div>
 
 <div class="collection-tree">

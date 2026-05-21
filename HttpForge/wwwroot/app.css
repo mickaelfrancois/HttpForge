@@ -63,3 +63,16 @@ h1:focus {
     background: var(--accent-color, #4a90e2) !important;
     color: white !important;
 }
+
+/* CodeMirror JSON token colors — 3-class specificity beats .cm-s-default .cm-string (2 classes) */
+.json-viewer-wrap .CodeMirror .cm-string,
+.json-body-editor-wrap .CodeMirror .cm-string { color: var(--json-string); }
+
+.json-viewer-wrap .CodeMirror .cm-property,
+.json-body-editor-wrap .CodeMirror .cm-property { color: var(--json-key); }
+
+.json-viewer-wrap .CodeMirror .cm-number,
+.json-body-editor-wrap .CodeMirror .cm-number { color: var(--json-number); }
+
+.json-viewer-wrap .CodeMirror .cm-atom,
+.json-body-editor-wrap .CodeMirror .cm-atom { color: var(--json-atom); }

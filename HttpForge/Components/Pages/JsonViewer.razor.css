@@ -9,7 +9,3 @@
     font-family: 'Consolas', 'Menlo', monospace;
 }
 
-.json-viewer-wrap :deep(.cm-string) { color: var(--json-string); }
-.json-viewer-wrap :deep(.cm-property) { color: var(--json-key); }
-.json-viewer-wrap :deep(.cm-number) { color: var(--json-number); }
-.json-viewer-wrap :deep(.cm-atom) { color: var(--json-atom); }
