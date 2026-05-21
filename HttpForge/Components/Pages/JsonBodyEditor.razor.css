@@ -2,13 +2,20 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-input);
+    border-radius: 3px;
 }
 
 .json-body-editor-wrap :deep(.CodeMirror) {
+    flex: 1;
+    height: 100%;
+    font-size: 13px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.json-body-editor-wrap :deep(.CodeMirror-scroll) {
     min-height: 180px;
-    max-height: 400px;
-    height: auto;
-    font-size: 0.85rem;
-    font-family: 'Consolas', 'Menlo', monospace;
 }
