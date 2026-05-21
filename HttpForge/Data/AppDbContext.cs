@@ -45,7 +45,7 @@ public class AppDbContext : DbContext
             .HasMany(f => f.Requests)
             .WithOne(r => r.Folder)
             .HasForeignKey(r => r.FolderId)
-            .OnDelete(DeleteBehavior.ClientSetNull);
+            .OnDelete(DeleteBehavior.ClientCascade);
 
         b.Entity<Collection>()
             .HasMany(c => c.VariableSets)
