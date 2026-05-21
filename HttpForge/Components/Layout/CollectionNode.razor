@@ -120,13 +120,6 @@
         if (!_expanded.Add(id)) _expanded.Remove(id);
     }
 
-    public void TriggerAddFolderAtRoot()
-    {
-        _addingUnder = -1;
-        _addingName = string.Empty;
-        StateHasChanged();
-    }
-
     private void StartAddFolder(int parentFolderId)
     {
         _addingUnder = parentFolderId;
@@ -154,7 +147,7 @@
         db.CollectionFolders.Add(new CollectionFolder
         {
             CollectionId = CollectionId,
-            ParentFolderId = parentFolderId == -1 ? null : parentFolderId,
+            ParentFolderId = parentFolderId,
             Name = name
         });
         await db.SaveChangesAsync();
@@ -221,8 +214,7 @@
         var folders = await db.CollectionFolders
             .Where(f => ids.Contains(f.Id))
             .ToListAsync();
-        foreach (var f in folders.OrderByDescending(f => GetFolderDepth(f.Id)))
-            db.CollectionFolders.Remove(f);
+        db.CollectionFolders.RemoveRange(folders);
 
         await db.SaveChangesAsync();
 
@@ -253,12 +245,14 @@
         await OnChanged.InvokeAsync(CollectionId);
     }
 
-    private List<int> GetAllDescendantFolderIds(int folderId)
+    private List<int> GetAllDescendantFolderIds(int folderId, HashSet<int>? visited = null)
     {
+        visited ??= [];
+        if (!visited.Add(folderId)) return [];
         var result = new List<int> { folderId };
         var children = AllFolders.Where(f => f.ParentFolderId == folderId);
         foreach (var child in children)
-            result.AddRange(GetAllDescendantFolderIds(child.Id));
+            result.AddRange(GetAllDescendantFolderIds(child.Id, visited));
         return result;
     }
 
@@ -275,12 +269,5 @@
         }
         requestCount += AllRequests.Count(r => r.FolderId == folderId);
         return (folderCount, requestCount);
-    }
-
-    private int GetFolderDepth(int folderId)
-    {
-        var f = AllFolders.FirstOrDefault(x => x.Id == folderId);
-        if (f?.ParentFolderId == null) return 0;
-        return 1 + GetFolderDepth(f.ParentFolderId.Value);
     }
 }

@@ -58,3 +58,8 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+.drag-over {
+    background: var(--accent-color, #4a90e2) !important;
+    color: white !important;
+}
