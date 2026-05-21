@@ -129,9 +129,19 @@
                 </button>
                 <button class="icon-btn @(_collVarEditorOpen.Contains(c.Id) ? "active" : "")"
                         title="Variables" @onclick="() => ToggleCollVarEditor(c.Id)">⚙</button>
+                <button class="icon-btn" title="New folder" @onclick="() => StartAddFolder(c.Id)">📁</button>
                 <button class="icon-btn" title="New request" @onclick="() => AddRequest(c)">+</button>
                 <button class="icon-btn" title="Delete collection" @onclick="() => DeleteCollection(c)">🗑</button>
             </div>
+            @if (_showAddFolder && _addingFolderCollectionId == c.Id)
+            {
+                <div class="inline-add">
+                    <input placeholder="Folder name" @bind="_newFolderName" @bind:event="oninput"
+                           @onkeydown="OnNewFolderKey" />
+                    <button @onclick="CommitAddFolder" disabled="@string.IsNullOrWhiteSpace(_newFolderName)">Add</button>
+                    <button class="link-btn" @onclick="() => _showAddFolder = false">cancel</button>
+                </div>
+            }
             @if (_collVarEditorOpen.Contains(c.Id))
             {
                 var cBase = c.VariableSets.FirstOrDefault(s => s.IsBase);
@@ -211,12 +221,14 @@
             }
             @if (_expanded.Contains(c.Id))
             {
-                <div class="request-list">
-                    @foreach (var r in c.Requests.Where(r => r.FolderId == null).OrderByDescending(r => r.UpdatedAt))
-                    {
-                        <RequestRow Request="r" OnChanged="ReloadAndNotify" />
-                    }
-                    @if (c.Requests.Count == 0)
+                <div class="request-list" data-drop="collection:@c.Id">
+                    <CollectionNode CollectionId="c.Id"
+                                    ParentFolderId="@((int?)null)"
+                                    AllFolders="_allFolders.Where(f => f.CollectionId == c.Id).ToList()"
+                                    AllRequests="c.Requests"
+                                    OnChanged="ReloadAndNotify" />
+                    @if (!c.Requests.Any(r => r.FolderId == null) &&
+                         !_allFolders.Any(f => f.CollectionId == c.Id))
                     {
                         <div class="empty-hint">No requests — click + to add.</div>
                     }
@@ -232,6 +244,7 @@
 
 @code {
     private List<Collection> _collections = new();
+    private List<CollectionFolder> _allFolders = [];
     private AppEnvironment? _globalBase;
     private List<AppEnvironment> _globalSubsets = new();
     private HashSet<int> _expanded = new();
@@ -288,6 +301,7 @@
             .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
             .OrderBy(c => c.Name)
             .ToListAsync();
+        _allFolders = await db.CollectionFolders.ToListAsync();
         var envs = await db.Environments
             .Include(e => e.Variables)
             .OrderBy(e => e.Name)
@@ -305,6 +319,46 @@
     {
         _showAddCollection = true;
         _newCollectionName = string.Empty;
+    }
+
+    private int? _addingFolderCollectionId;
+    private string _newFolderName = string.Empty;
+    private bool _showAddFolder;
+
+    private void StartAddFolder(int collectionId)
+    {
+        _addingFolderCollectionId = collectionId;
+        _newFolderName = string.Empty;
+        _showAddFolder = true;
+        _expanded.Add(collectionId);
+    }
+
+    private async Task CommitAddFolder()
+    {
+        if (string.IsNullOrWhiteSpace(_newFolderName) || _addingFolderCollectionId is null)
+        {
+            _showAddFolder = false;
+            return;
+        }
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionFolders.Add(new CollectionFolder
+        {
+            CollectionId = _addingFolderCollectionId.Value,
+            ParentFolderId = null,
+            Name = _newFolderName.Trim()
+        });
+        await db.SaveChangesAsync();
+        _showAddFolder = false;
+        _addingFolderCollectionId = null;
+        _newFolderName = string.Empty;
+        await ReloadAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task OnNewFolderKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CommitAddFolder();
+        else if (e.Key == "Escape") _showAddFolder = false;
     }
 
     private async Task OnImportFiles(InputFileChangeEventArgs e)

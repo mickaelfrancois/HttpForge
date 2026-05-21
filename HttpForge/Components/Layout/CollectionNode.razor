@@ -1,0 +1,286 @@
+@* HttpForge/Components/Layout/CollectionNode.razor *@
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject AppState State
+@inject IJSRuntime JS
+
+@* Renders the contents of a collection root (ParentFolderId=null) or a folder. *@
+@* Folder header is rendered by the PARENT; this component renders CHILDREN. *@
+
+@* Sub-folders at this level *@
+@foreach (var folder in DirectFolders)
+{
+    <div class="folder-item">
+        <div class="folder-row"
+             tabindex="0"
+             draggable="true"
+             data-drag="folder:@folder.Id"
+             data-drop="folder:@folder.Id"
+             @onkeydown="e => OnFolderKeyDown(folder, e)">
+            <button class="folder-toggle" @onclick="() => ToggleExpand(folder.Id)" @onclick:stopPropagation>
+                @(_expanded.Contains(folder.Id) ? "▾" : "▸")
+            </button>
+            @if (_renaming == folder.Id)
+            {
+                <input class="folder-rename-input"
+                       @ref="_renameInput"
+                       value="@_renameValue"
+                       @oninput="e => _renameValue = e.Value?.ToString() ?? string.Empty"
+                       @onblur="() => CommitRename(folder)"
+                       @onkeydown="e => OnRenameInputKeyDown(folder, e)"
+                       @onclick:stopPropagation />
+            }
+            else
+            {
+                <span class="folder-name">@folder.Name</span>
+                <button class="icon-btn" title="New sub-folder" @onclick:stopPropagation @onclick="() => StartAddFolder(folder.Id)">+</button>
+                <button class="icon-btn" title="New request" @onclick:stopPropagation @onclick="() => AddRequest(folder)">↵</button>
+                <button class="icon-btn" title="Delete folder" @onclick:stopPropagation @onclick="() => DeleteFolder(folder)">🗑</button>
+            }
+        </div>
+
+        @if (_addingUnder == folder.Id)
+        {
+            <div class="folder-inline-add">
+                <input placeholder="Folder name"
+                       @bind="_addingName"
+                       @bind:event="oninput"
+                       @onkeydown="e => OnAddInputKeyDown(e, folder.Id)"
+                       @onblur="() => CancelAdd()" />
+            </div>
+        }
+
+        @if (_expanded.Contains(folder.Id))
+        {
+            <div class="folder-children">
+                <CollectionNode CollectionId="CollectionId"
+                                ParentFolderId="folder.Id"
+                                AllFolders="AllFolders"
+                                AllRequests="AllRequests"
+                                OnChanged="OnChanged" />
+            </div>
+        }
+    </div>
+}
+
+@* Requests at this level *@
+@foreach (var r in DirectRequests)
+{
+    <RequestRow Request="r" OnChanged="OnChanged" />
+}
+
+@* Inline "add folder" at this level (when _addingUnder == -1) *@
+@if (_addingUnder == -1)
+{
+    <div class="folder-inline-add">
+        <input placeholder="Folder name"
+               @bind="_addingName"
+               @bind:event="oninput"
+               @onkeydown="e => OnAddInputKeyDown(e, null)"
+               @onblur="() => CancelAdd()" />
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int CollectionId { get; set; }
+    [Parameter] public int? ParentFolderId { get; set; }
+    [Parameter, EditorRequired] public List<CollectionFolder> AllFolders { get; set; } = [];
+    [Parameter, EditorRequired] public List<HttpRequestItem> AllRequests { get; set; } = [];
+    [Parameter] public EventCallback<int> OnChanged { get; set; }
+
+    private IEnumerable<CollectionFolder> DirectFolders =>
+        AllFolders.Where(f => f.CollectionId == CollectionId && f.ParentFolderId == ParentFolderId)
+                  .OrderBy(f => f.Name);
+
+    private IEnumerable<HttpRequestItem> DirectRequests =>
+        AllRequests.Where(r => r.FolderId == ParentFolderId)
+                   .OrderByDescending(r => r.UpdatedAt);
+
+    private HashSet<int> _expanded = [];
+    private int? _renaming;
+    private string _renameValue = string.Empty;
+    private bool _shouldFocusRename;
+    private ElementReference _renameInput;
+
+    // -1 = add at this level (root of collection node), positive int = inside that folder
+    private int? _addingUnder;
+    private string _addingName = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldFocusRename && _renaming.HasValue)
+        {
+            _shouldFocusRename = false;
+            try { await _renameInput.FocusAsync(); } catch { }
+        }
+    }
+
+    private void ToggleExpand(int id)
+    {
+        if (!_expanded.Add(id)) _expanded.Remove(id);
+    }
+
+    public void TriggerAddFolderAtRoot()
+    {
+        _addingUnder = -1;
+        _addingName = string.Empty;
+        StateHasChanged();
+    }
+
+    private void StartAddFolder(int parentFolderId)
+    {
+        _addingUnder = parentFolderId;
+        _addingName = string.Empty;
+    }
+
+    private void CancelAdd()
+    {
+        _addingUnder = null;
+        _addingName = string.Empty;
+    }
+
+    private async Task OnAddInputKeyDown(KeyboardEventArgs e, int? parentFolderId)
+    {
+        if (e.Key == "Enter") await CommitAdd(parentFolderId);
+        else if (e.Key == "Escape") CancelAdd();
+    }
+
+    private async Task CommitAdd(int? parentFolderId)
+    {
+        var name = _addingName.Trim();
+        if (string.IsNullOrWhiteSpace(name)) { CancelAdd(); return; }
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionFolders.Add(new CollectionFolder
+        {
+            CollectionId = CollectionId,
+            ParentFolderId = parentFolderId == -1 ? null : parentFolderId,
+            Name = name
+        });
+        await db.SaveChangesAsync();
+        CancelAdd();
+        await OnChanged.InvokeAsync(CollectionId);
+    }
+
+    private void OnFolderKeyDown(CollectionFolder folder, KeyboardEventArgs e)
+    {
+        if (e.Key == "F2") StartRename(folder);
+    }
+
+    private void StartRename(CollectionFolder folder)
+    {
+        _renaming = folder.Id;
+        _renameValue = folder.Name;
+        _shouldFocusRename = true;
+        StateHasChanged();
+    }
+
+    private async Task OnRenameInputKeyDown(CollectionFolder folder, KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CommitRename(folder);
+        else if (e.Key == "Escape") CancelRename();
+    }
+
+    private void CancelRename()
+    {
+        _renaming = null;
+        _renameValue = string.Empty;
+    }
+
+    private async Task CommitRename(CollectionFolder folder)
+    {
+        if (_renaming != folder.Id) return;
+        var name = _renameValue.Trim();
+        _renaming = null;
+        if (string.IsNullOrWhiteSpace(name) || name == folder.Name) return;
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        var f = await db.CollectionFolders.FirstAsync(x => x.Id == folder.Id);
+        f.Name = name;
+        await db.SaveChangesAsync();
+        await OnChanged.InvokeAsync(CollectionId);
+    }
+
+    private async Task DeleteFolder(CollectionFolder folder)
+    {
+        var (folderCount, requestCount) = CountDescendants(folder.Id);
+        var msg = $"Delete folder \"{folder.Name}\"";
+        if (requestCount > 0 || folderCount > 0)
+            msg += $" and its {requestCount} request(s) and {folderCount} sub-folder(s)";
+        msg += "?";
+        if (!await JS.InvokeAsync<bool>("confirm", msg)) return;
+
+        var ids = GetAllDescendantFolderIds(folder.Id);
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        var requests = await db.Requests
+            .Where(r => r.FolderId != null && ids.Contains(r.FolderId.Value))
+            .ToListAsync();
+        db.Requests.RemoveRange(requests);
+
+        var folders = await db.CollectionFolders
+            .Where(f => ids.Contains(f.Id))
+            .ToListAsync();
+        foreach (var f in folders.OrderByDescending(f => GetFolderDepth(f.Id)))
+            db.CollectionFolders.Remove(f);
+
+        await db.SaveChangesAsync();
+
+        if (State.SelectedRequestId.HasValue &&
+            requests.Any(r => r.Id == State.SelectedRequestId))
+        {
+            State.SelectedRequestId = null;
+        }
+        await OnChanged.InvokeAsync(CollectionId);
+        State.NotifyChanged();
+    }
+
+    private async Task AddRequest(CollectionFolder folder)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var r = new HttpRequestItem
+        {
+            CollectionId = CollectionId,
+            FolderId = folder.Id,
+            Name = "New request",
+            Method = HttpMethodKind.GET,
+            Url = "https://"
+        };
+        db.Requests.Add(r);
+        await db.SaveChangesAsync();
+        State.SelectedRequestId = r.Id;
+        State.NotifyChanged();
+        await OnChanged.InvokeAsync(CollectionId);
+    }
+
+    private List<int> GetAllDescendantFolderIds(int folderId)
+    {
+        var result = new List<int> { folderId };
+        var children = AllFolders.Where(f => f.ParentFolderId == folderId);
+        foreach (var child in children)
+            result.AddRange(GetAllDescendantFolderIds(child.Id));
+        return result;
+    }
+
+    private (int folders, int requests) CountDescendants(int folderId)
+    {
+        int folderCount = 0, requestCount = 0;
+        var children = AllFolders.Where(f => f.ParentFolderId == folderId).ToList();
+        foreach (var child in children)
+        {
+            folderCount++;
+            var (cf, cr) = CountDescendants(child.Id);
+            folderCount += cf;
+            requestCount += cr;
+        }
+        requestCount += AllRequests.Count(r => r.FolderId == folderId);
+        return (folderCount, requestCount);
+    }
+
+    private int GetFolderDepth(int folderId)
+    {
+        var f = AllFolders.FirstOrDefault(x => x.Id == folderId);
+        if (f?.ParentFolderId == null) return 0;
+        return 1 + GetFolderDepth(f.ParentFolderId.Value);
+    }
+}

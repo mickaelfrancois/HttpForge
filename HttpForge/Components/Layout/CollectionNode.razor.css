@@ -1,0 +1,69 @@
+/* HttpForge/Components/Layout/CollectionNode.razor.css */
+.folder-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.folder-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: default;
+    user-select: none;
+    outline: none;
+}
+
+.folder-row:hover,
+.folder-row:focus {
+    background: var(--hover-bg, rgba(0,0,0,0.06));
+}
+
+.folder-row.drag-over {
+    background: var(--accent-color, #4a90e2);
+    color: white;
+}
+
+.folder-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 2px;
+    color: inherit;
+    font-size: 0.75rem;
+}
+
+.folder-name {
+    flex: 1;
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-rename-input {
+    flex: 1;
+    font-size: 0.85rem;
+    background: var(--input-bg, white);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.folder-children {
+    padding-left: 14px;
+}
+
+.folder-inline-add {
+    padding: 2px 4px 2px 18px;
+}
+
+.folder-inline-add input {
+    width: 100%;
+    font-size: 0.85rem;
+    background: var(--input-bg, white);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 3px;
+    padding: 2px 4px;
+}
