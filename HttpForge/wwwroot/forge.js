@@ -220,8 +220,8 @@ window.forge.viewer = {
     dispose(el) {
         const cm = this._instances.get(el);
         if (!cm) return;
-        cm.getWrapperElement().remove();
         this._instances.delete(el);
+        cm.getWrapperElement().remove();
     }
 };
 
