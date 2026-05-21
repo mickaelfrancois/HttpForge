@@ -482,6 +482,7 @@
         _importStatus = null;
         int totalCollections = 0;
         int totalRequests = 0;
+        int totalFolders = 0;
         var errors = new List<string>();
 
         foreach (var file in e.GetMultipleFiles(maximumFileCount: 20))
@@ -490,10 +491,11 @@
             {
                 using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
                 var result = await Importer.ImportFileAsync(stream, file.Name);
-                if (result.RequestsCreated > 0)
+                if (result.RequestsCreated > 0 || result.FoldersCreated > 0)
                 {
                     totalCollections++;
                     totalRequests += result.RequestsCreated;
+                    totalFolders += result.FoldersCreated;
                 }
                 foreach (var w in result.Warnings)
                     Console.WriteLine($"[Insomnia import] {file.Name}: {w}");
@@ -506,7 +508,7 @@
 
         _importStatus = errors.Count > 0
             ? $"Import error: {string.Join("; ", errors)}"
-            : $"Imported: {totalCollections} collection(s), {totalRequests} request(s)";
+            : $"Imported: {totalCollections} collection(s), {totalFolders} folder(s), {totalRequests} request(s)";
 
         await ReloadAsync();
         State.NotifyChanged();

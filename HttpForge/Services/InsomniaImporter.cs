@@ -7,7 +7,7 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace HttpForge.Services;
 
-public record ImportResult(string FileName, int RequestsCreated, int VariablesCreated, List<string> Warnings);
+public record ImportResult(string FileName, int RequestsCreated, int FoldersCreated, int VariablesCreated, List<string> Warnings);
 
 public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
 {
@@ -41,29 +41,29 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         var file = Deserializer.Deserialize<InsomniaFile>(yaml);
 
         if (file.Meta?.Id == "wrk_scratchpad")
-            return new ImportResult(filename, 0, 0, warnings);
+            return new ImportResult(filename, 0, 0, 0, warnings);
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
         if (file.Type == "collection.insomnia.rest/5.0")
         {
-            var (req, vars) = await ImportCollectionAsync(db, file, warnings);
+            var (req, folders, vars) = await ImportCollectionAsync(db, file, warnings);
             await db.SaveChangesAsync();
-            return new ImportResult(filename, req, vars, warnings);
+            return new ImportResult(filename, req, folders, vars, warnings);
         }
 
         if (file.Type == "environment.insomnia.rest/5.0")
         {
             var vars = await ImportGlobalEnvAsync(db, file, warnings);
             await db.SaveChangesAsync();
-            return new ImportResult(filename, 0, vars, warnings);
+            return new ImportResult(filename, 0, 0, vars, warnings);
         }
 
         warnings.Add($"Unrecognized workspace type: {file.Type}");
-        return new ImportResult(filename, 0, 0, warnings);
+        return new ImportResult(filename, 0, 0, 0, warnings);
     }
 
-    private static async Task<(int requests, int variables)> ImportCollectionAsync(
+    private static async Task<(int requests, int folders, int variables)> ImportCollectionAsync(
         AppDbContext db, InsomniaFile file, List<string> warnings)
     {
         var collection = new Collection { Name = file.Name ?? "Imported" };
@@ -72,15 +72,10 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
 
         try
         {
-            int requestCount = 0;
+            var (requestCount, folderCount) = await ImportNodesAsync(
+                db, file.Collection ?? [], collection.Id, null, warnings);
+
             int varCount = 0;
-
-            foreach (var node in FlattenNodes(file.Collection ?? []))
-            {
-                db.Requests.Add(MapRequest(node, collection.Id, warnings));
-                requestCount++;
-            }
-
             if (file.Environments is not null)
             {
                 var baseSet = new CollectionVariableSet
@@ -107,7 +102,7 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
                 }
             }
 
-            return (requestCount, varCount);
+            return (requestCount, folderCount, varCount);
         }
         catch (Exception)
         {
@@ -159,16 +154,37 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         return count;
     }
 
-    private static IEnumerable<InsomniaNode> FlattenNodes(List<InsomniaNode> nodes)
+    private static async Task<(int requests, int folders)> ImportNodesAsync(
+        AppDbContext db, List<InsomniaNode> nodes, int collectionId, int? parentFolderId, List<string> warnings)
     {
+        int requestCount = 0, folderCount = 0;
         foreach (var node in nodes)
         {
             if (node.Url is not null)
-                yield return node;
-            if (node.Children is { Count: > 0 })
-                foreach (var child in FlattenNodes(node.Children))
-                    yield return child;
+            {
+                var req = MapRequest(node, collectionId, warnings);
+                req.FolderId = parentFolderId;
+                db.Requests.Add(req);
+                requestCount++;
+            }
+            else
+            {
+                var folder = new CollectionFolder
+                {
+                    CollectionId = collectionId,
+                    ParentFolderId = parentFolderId,
+                    Name = node.Name ?? "Folder"
+                };
+                db.CollectionFolders.Add(folder);
+                await db.SaveChangesAsync();  // needed to get folder.Id before recursing
+                folderCount++;
+                var (childReqs, childFolders) = await ImportNodesAsync(
+                    db, node.Children ?? [], collectionId, folder.Id, warnings);
+                requestCount += childReqs;
+                folderCount += childFolders;
+            }
         }
+        return (requestCount, folderCount);
     }
 
     private static HttpRequestItem MapRequest(InsomniaNode node, int collectionId, List<string> warnings)
