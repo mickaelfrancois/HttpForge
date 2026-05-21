@@ -106,6 +106,9 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         }
         catch (Exception)
         {
+            await db.CollectionFolders
+                .Where(f => f.CollectionId == collection.Id)
+                .LoadAsync();
             db.Collections.Remove(collection);
             await db.SaveChangesAsync();
             throw;
