@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="HttpForge/HttpForge.csproj" />
-  <Project Path="HttpForge.Tests/HttpForge.Tests.csproj" />
-</Solution>
