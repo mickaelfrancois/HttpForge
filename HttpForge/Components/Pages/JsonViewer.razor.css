@@ -1,0 +1,10 @@
+.json-viewer-wrap {
+    width: 100%;
+}
+
+.json-viewer-wrap ::deep .CodeMirror {
+    height: auto;
+    max-height: 400px;
+    font-size: 0.85rem;
+    font-family: 'Consolas', 'Menlo', monospace;
+}

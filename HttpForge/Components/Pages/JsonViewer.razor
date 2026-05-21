@@ -1,0 +1,31 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="json-viewer-wrap" @ref="_containerRef"></div>
+
+@code {
+    [Parameter] public string Value { get; set; } = string.Empty;
+
+    private ElementReference _containerRef;
+    private string _lastValue = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _lastValue = Value;
+            await JS.InvokeVoidAsync("forge.viewer.init", _containerRef, Value);
+        }
+        else if (Value != _lastValue)
+        {
+            _lastValue = Value;
+            await JS.InvokeVoidAsync("forge.viewer.setValue", _containerRef, Value);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("forge.viewer.dispose", _containerRef); } catch { }
+    }
+}
