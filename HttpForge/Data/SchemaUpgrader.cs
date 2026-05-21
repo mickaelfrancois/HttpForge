@@ -63,7 +63,8 @@ public static class SchemaUpgrader
             "\"Id\" INTEGER PRIMARY KEY AUTOINCREMENT, " +
             "\"CollectionId\" INTEGER NOT NULL, " +
             "\"ParentFolderId\" INTEGER NULL, " +
-            "\"Name\" TEXT NOT NULL DEFAULT '');");
+            "\"Name\" TEXT NOT NULL DEFAULT '', " +
+            "FOREIGN KEY (\"CollectionId\") REFERENCES \"Collections\"(\"Id\") ON DELETE CASCADE);");
 
         EnsureColumn(db, "Requests", "FolderId", "INTEGER NULL");
 
