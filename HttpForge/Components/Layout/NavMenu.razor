@@ -237,7 +237,7 @@
                                     AllFolders="_allFolders.Where(f => f.CollectionId == c.Id).ToList()"
                                     AllRequests="c.Requests"
                                     OnChanged="ReloadAndNotify"
-                                    FilterText="@(c.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ? string.Empty : _filterText)" />
+                                    FilterText="@(string.IsNullOrWhiteSpace(_filterText) || c.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ? string.Empty : _filterText)" />
                     @if (!c.Requests.Any(r => r.FolderId == null) &&
                          !_allFolders.Any(f => f.CollectionId == c.Id))
                     {
