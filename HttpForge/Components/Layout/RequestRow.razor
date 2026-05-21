@@ -7,16 +7,73 @@
 <div class="request-row @(State.SelectedRequestId == Request.Id ? "selected" : "")"
      draggable="true"
      data-drag="request:@Request.Id"
-     @onclick="Select">
+     @onclick="Select"
+     @onmouseenter="() => _isHovered = true"
+     @onmouseleave="() => { _isHovered = false; _menuOpen = false; }">
     <span class="method method-@Request.Method.ToString().ToLower()">@Request.Method</span>
-    <span class="request-name">@(string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name)</span>
-    <button class="icon-btn" title="Duplicate request" @onclick:stopPropagation @onclick="Duplicate">⎘</button>
-    <button class="icon-btn" title="Delete request" @onclick:stopPropagation @onclick="Delete">✕</button>
+    @if (_renaming)
+    {
+        <input class="request-rename-input"
+               @ref="_renameInput"
+               value="@_renameValue"
+               @oninput="e => _renameValue = e.Value?.ToString() ?? string.Empty"
+               @onblur="CommitRename"
+               @onkeydown="OnRenameKeyDown"
+               @onclick:stopPropagation />
+    }
+    else
+    {
+        <span class="request-name">@(string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name)</span>
+        <div class="gear-wrap @(_isHovered ? "visible" : "")">
+            <button class="icon-btn gear-btn"
+                    title="Actions"
+                    @onclick:stopPropagation
+                    @onclick="() => _menuOpen = !_menuOpen">
+                ⚙
+            </button>
+            @if (_menuOpen)
+            {
+                <div class="context-menu">
+                    <button class="context-menu-item"
+                            @onclick:stopPropagation
+                            @onclick="StartRename">
+                        <span>✏</span> Renommer
+                    </button>
+                    <button class="context-menu-item"
+                            @onclick:stopPropagation
+                            @onclick="Duplicate">
+                        <span>⎘</span> Dupliquer
+                    </button>
+                    <button class="context-menu-item danger"
+                            @onclick:stopPropagation
+                            @onclick="Delete">
+                        <span>✕</span> Supprimer
+                    </button>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 @code {
     [Parameter, EditorRequired] public HttpRequestItem Request { get; set; } = null!;
     [Parameter] public EventCallback<int> OnChanged { get; set; }
+
+    private bool _isHovered;
+    private bool _menuOpen;
+    private bool _renaming;
+    private string _renameValue = string.Empty;
+    private bool _shouldFocusRename;
+    private ElementReference _renameInput;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldFocusRename && _renaming)
+        {
+            _shouldFocusRename = false;
+            try { await _renameInput.FocusAsync(); } catch { }
+        }
+    }
 
     private void Select()
     {
@@ -24,8 +81,38 @@
         State.NotifyChanged();
     }
 
+    private void StartRename()
+    {
+        _renameValue = Request.Name;
+        _renaming = true;
+        _menuOpen = false;
+        _shouldFocusRename = true;
+        StateHasChanged();
+    }
+
+    private async Task CommitRename()
+    {
+        if (!_renaming) return;
+        _renaming = false;
+        var name = _renameValue.Trim();
+        if (string.IsNullOrWhiteSpace(name) || name == Request.Name) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        var r = await db.Requests.FirstAsync(x => x.Id == Request.Id);
+        r.Name = name;
+        r.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await OnChanged.InvokeAsync(Request.CollectionId);
+    }
+
+    private async Task OnRenameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CommitRename();
+        else if (e.Key == "Escape") _renaming = false;
+    }
+
     private async Task Duplicate()
     {
+        _menuOpen = false;
         using var db = await DbFactory.CreateDbContextAsync();
         var source = await db.Requests
             .Include(x => x.Headers)
@@ -59,6 +146,7 @@
 
     private async Task Delete()
     {
+        _menuOpen = false;
         var label = string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name;
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete request \"{label}\"?")) return;
         using var db = await DbFactory.CreateDbContextAsync();
