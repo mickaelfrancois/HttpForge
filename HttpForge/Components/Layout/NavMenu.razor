@@ -125,7 +125,9 @@
     @foreach (var c in _collections.Where(c => CollectionHasMatch(c)))
     {
         <div class="collection-node">
-            <div class="collection-header">
+            <div class="collection-header"
+                 @onmouseenter="() => _hoveredCollectionId = c.Id"
+                 @onmouseleave="() => { _hoveredCollectionId = null; _openCollectionMenuId = null; }">
                 <button class="collection-toggle" @onclick="() => ToggleCollection(c.Id)">
                     <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
                     <span>@c.Name</span>
@@ -137,11 +139,39 @@
                         <span class="subset-badge">@activeBadgeSet.Name</span>
                     }
                 </button>
-                <button class="icon-btn @(_collVarEditorOpen.Contains(c.Id) ? "active" : "")"
-                        title="Variables" @onclick="() => ToggleCollVarEditor(c.Id)">⚙</button>
-                <button class="icon-btn" title="New folder" @onclick="() => StartAddFolder(c.Id)">📁</button>
-                <button class="icon-btn" title="New request" @onclick="() => AddRequest(c)">+</button>
-                <button class="icon-btn" title="Delete collection" @onclick="() => DeleteCollection(c)">🗑</button>
+                <div class="gear-wrap @(_hoveredCollectionId == c.Id ? "visible" : "")">
+                    <button class="icon-btn gear-btn"
+                            title="Actions"
+                            @onclick:stopPropagation
+                            @onclick="() => _openCollectionMenuId = (_openCollectionMenuId == c.Id ? (int?)null : c.Id)">
+                        ⚙
+                    </button>
+                    @if (_openCollectionMenuId == c.Id)
+                    {
+                        <div class="context-menu">
+                            <button class="context-menu-item @(_collVarEditorOpen.Contains(c.Id) ? "active" : "")"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { ToggleCollVarEditor(c.Id); _openCollectionMenuId = null; }">
+                                <span>⚙</span> Variables de collection
+                            </button>
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { StartAddFolder(c.Id); _openCollectionMenuId = null; }">
+                                <span>📁</span> Nouveau dossier
+                            </button>
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { _ = AddRequest(c); _openCollectionMenuId = null; }">
+                                <span>＋</span> Nouvelle requête
+                            </button>
+                            <button class="context-menu-item danger"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { _ = DeleteCollection(c); _openCollectionMenuId = null; }">
+                                <span>🗑</span> Supprimer la collection
+                            </button>
+                        </div>
+                    }
+                </div>
             </div>
             @if (_showAddFolder && _addingFolderCollectionId == c.Id)
             {
@@ -269,6 +299,8 @@
     private HashSet<int> _collVarEntryRevealed = new();
     private string? _importStatus;
     private bool _disposed;
+    private int? _hoveredCollectionId;
+    private int? _openCollectionMenuId;
     private DotNetObjectReference<NavMenu>? _dndRef;
 
     protected override async Task OnInitializedAsync()
