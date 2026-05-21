@@ -16,7 +16,9 @@
              draggable="true"
              data-drag="folder:@folder.Id"
              data-drop="folder:@folder.Id"
-             @onkeydown="e => OnFolderKeyDown(folder, e)">
+             @onkeydown="e => OnFolderKeyDown(folder, e)"
+             @onmouseenter="() => _hoveredFolderId = folder.Id"
+             @onmouseleave="() => { _hoveredFolderId = null; _openFolderMenuId = null; }">
             <button class="folder-toggle" @onclick="() => ToggleExpand(folder.Id)" @onclick:stopPropagation>
                 @(_expanded.Contains(folder.Id) ? "▾" : "▸")
             </button>
@@ -32,10 +34,42 @@
             }
             else
             {
-                <span class="folder-name" @ondblclick="() => ToggleExpand(folder.Id)" @ondblclick:stopPropagation><span class="folder-icon">@(_expanded.Contains(folder.Id) ? "📂" : "📁")</span>@folder.Name</span>
-                <button class="icon-btn" title="New sub-folder" @onclick:stopPropagation @onclick="() => StartAddFolder(folder.Id)">+</button>
-                <button class="icon-btn" title="New request" @onclick:stopPropagation @onclick="() => AddRequest(folder)">↵</button>
-                <button class="icon-btn" title="Delete folder" @onclick:stopPropagation @onclick="() => DeleteFolder(folder)">🗑</button>
+                <span class="folder-name" @ondblclick="() => ToggleExpand(folder.Id)" @ondblclick:stopPropagation>
+                    <span class="folder-icon">@(_expanded.Contains(folder.Id) ? "📂" : "📁")</span>@folder.Name
+                </span>
+                <div class="gear-wrap @(_hoveredFolderId == folder.Id ? "visible" : "")">
+                    <button class="icon-btn gear-btn"
+                            title="Actions"
+                            @onclick:stopPropagation
+                            @onclick="() => _openFolderMenuId = (_openFolderMenuId == folder.Id ? (int?)null : folder.Id)">
+                        ⚙
+                    </button>
+                    @if (_openFolderMenuId == folder.Id)
+                    {
+                        <div class="context-menu">
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { StartAddFolder(folder.Id); _openFolderMenuId = null; }">
+                                <span>＋</span> Nouveau sous-dossier
+                            </button>
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { _ = AddRequest(folder); _openFolderMenuId = null; }">
+                                <span>↵</span> Nouvelle requête
+                            </button>
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { StartRename(folder); _openFolderMenuId = null; }">
+                                <span>✏</span> Renommer
+                            </button>
+                            <button class="context-menu-item danger"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { _ = DeleteFolder(folder); _openFolderMenuId = null; }">
+                                <span>🗑</span> Supprimer le dossier
+                            </button>
+                        </div>
+                    }
+                </div>
             }
         </div>
 
@@ -120,6 +154,8 @@
     private int? _renaming;
     private string _renameValue = string.Empty;
     private bool _shouldFocusRename;
+    private int? _hoveredFolderId;
+    private int? _openFolderMenuId;
     private ElementReference _renameInput;
 
     // -1 = add at this level (root of collection node), positive int = inside that folder
