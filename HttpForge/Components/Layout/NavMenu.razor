@@ -315,6 +315,8 @@
 
         if (dragType == "request")
         {
+            var draggedReq = _collections.SelectMany(c => c.Requests).FirstOrDefault(r => r.Id == dragId);
+            if (draggedReq != null && draggedReq.CollectionId == targetCollectionId && draggedReq.FolderId == targetFolderId) return;
             await MoveRequestAsync(dragId, targetCollectionId, targetFolderId);
         }
         else // "folder"
@@ -374,6 +376,8 @@
         await db.SaveChangesAsync();
     }
 
+    // Mutates tracked entities without calling SaveChangesAsync.
+    // Caller (MoveFolderAsync) flushes all changes in a single SaveChangesAsync via EF change tracker.
     private async Task UpdateDescendantsCollectionAsync(AppDbContext db, int folderId, int targetCollectionId)
     {
         var childFolders = await db.CollectionFolders
