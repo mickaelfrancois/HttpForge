@@ -113,14 +113,20 @@ else
                                 </label>
                             }
                         </div>
-                        @if (_request.BodyKind == BodyKind.Json || _request.BodyKind == BodyKind.Raw)
+                        @if (_request.BodyKind == BodyKind.Json)
+                        {
+                            <JsonBodyEditor Value="@_request.BodyContent"
+                                            ValueChanged="OnBodyChanged"
+                                            OnBlur="SaveRequestDebounced" />
+                        }
+                        else if (_request.BodyKind == BodyKind.Raw)
                         {
                             <VariableInput Value="@_request.BodyContent"
                                            ValueChanged="OnBodyChanged"
                                            OnBlur="SaveRequestDebounced"
                                            Multiline="true"
                                            CssClass="body-textarea"
-                                           Placeholder="@(_request.BodyKind == BodyKind.Json ? "{ \"key\": \"value\" }" : "raw body")"
+                                           Placeholder="raw body"
                                            Title="@Tooltip(_request.BodyContent)"
                                            EnvVariables="_resolvedVariables" />
                         }
@@ -194,7 +200,7 @@ else
                 <div class="response-body">
                     @if (_responseTab == "Body")
                     {
-                        <pre>@FormatBody(_result.Body)</pre>
+                        <JsonViewer Value="@FormatBody(_result.Body)" />
                     }
                     else
                     {
