@@ -254,15 +254,6 @@
     padding: 0.5rem 1rem 1rem;
 }
 
-.response-body pre {
-    color: var(--text-code);
-    font-family: 'Consolas', monospace;
-    font-size: 0.82rem;
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
 .header-table {
     width: 100%;
     border-collapse: collapse;

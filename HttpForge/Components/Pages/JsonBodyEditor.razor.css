@@ -5,6 +5,7 @@
     overflow: hidden;
     border: 1px solid var(--border-input);
     border-radius: 3px;
+    min-height: 0;
 }
 
 .json-body-editor-wrap :deep(.CodeMirror) {

@@ -38,10 +38,14 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_dotnetRef is not null)
+        try
         {
-            try { await JS.InvokeVoidAsync("forge.editor.dispose", _textareaRef); } catch { }
+            await JS.InvokeVoidAsync("forge.editor.dispose", _textareaRef);
         }
-        _dotnetRef?.Dispose();
+        catch { }
+        finally
+        {
+            _dotnetRef?.Dispose();
+        }
     }
 }
