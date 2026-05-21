@@ -155,13 +155,13 @@ window.forge.scripts = {
 window.forge.editor = {
     _instances: new Map(),
 
-    init(textareaEl, dotnetRef, initialValue) {
+    init(textareaEl, dotnetRef, initialValue, mode = 'javascript', hasBlur = false) {
         if (this._instances.has(textareaEl)) return;
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
             || (!document.documentElement.getAttribute('data-theme')
                 && window.matchMedia('(prefers-color-scheme: dark)').matches);
         const cm = CodeMirror.fromTextArea(textareaEl, {
-            mode: 'javascript',
+            mode: mode,
             theme: isDark ? 'monokai' : 'default',
             lineNumbers: true,
             tabSize: 2,
@@ -177,6 +177,11 @@ window.forge.editor = {
                 dotnetRef.invokeMethodAsync('OnScriptChanged', cm.getValue());
             }, 300);
         });
+        if (hasBlur) {
+            cm.on('blur', () => {
+                dotnetRef.invokeMethodAsync('OnEditorBlur');
+            });
+        }
         this._instances.set(textareaEl, cm);
     },
 
@@ -185,6 +190,38 @@ window.forge.editor = {
         if (!cm) return;
         cm.toTextArea();
         this._instances.delete(textareaEl);
+    }
+};
+
+window.forge.viewer = {
+    _instances: new Map(),
+
+    init(el, value) {
+        if (this._instances.has(el)) return;
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+            || (!document.documentElement.getAttribute('data-theme')
+                && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const cm = CodeMirror(el, {
+            value: value || '',
+            mode: 'application/json',
+            theme: isDark ? 'monokai' : 'default',
+            lineNumbers: true,
+            readOnly: true,
+            lineWrapping: false
+        });
+        this._instances.set(el, cm);
+    },
+
+    setValue(el, value) {
+        const cm = this._instances.get(el);
+        if (cm) cm.setValue(value || '');
+    },
+
+    dispose(el) {
+        const cm = this._instances.get(el);
+        if (!cm) return;
+        cm.getWrapperElement().remove();
+        this._instances.delete(el);
     }
 };
 
