@@ -403,8 +403,9 @@
         await ReloadAsync();
     }
 
-    private async Task ReloadAndNotify()
+    private async Task ReloadAndNotify(int collectionId)
     {
+        _expanded.Add(collectionId);
         await ReloadAsync();
         await InvokeAsync(StateHasChanged);
     }

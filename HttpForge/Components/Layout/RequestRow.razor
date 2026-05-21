@@ -16,7 +16,7 @@
 
 @code {
     [Parameter, EditorRequired] public HttpRequestItem Request { get; set; } = null!;
-    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback<int> OnChanged { get; set; }
 
     private void Select()
     {
@@ -54,7 +54,7 @@
         await db.SaveChangesAsync();
         State.SelectedRequestId = copy.Id;
         State.NotifyChanged();
-        await OnChanged.InvokeAsync();
+        await OnChanged.InvokeAsync(copy.CollectionId);
     }
 
     private async Task Delete()
@@ -69,6 +69,6 @@
             State.SelectedRequestId = null;
             State.NotifyChanged();
         }
-        await OnChanged.InvokeAsync();
+        await OnChanged.InvokeAsync(Request.CollectionId);
     }
 }
