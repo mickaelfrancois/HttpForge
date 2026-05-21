@@ -8,7 +8,8 @@ public static class SchemaUpgrader
     [
         "Collections", "Environments", "EnvironmentVariables",
         "CollectionVariables", "RequestVariables", "AppSettings",
-        "CollectionVariableSets", "CollectionVariableEntries", "Requests"
+        "CollectionVariableSets", "CollectionVariableEntries", "Requests",
+        "CollectionFolders"
     ];
     public static void Apply(AppDbContext db)
     {
@@ -56,6 +57,15 @@ public static class SchemaUpgrader
             "\"Value\" TEXT NOT NULL DEFAULT '', " +
             "\"IsSecret\" INTEGER NOT NULL DEFAULT 0, " +
             "FOREIGN KEY (\"CollectionVariableSetId\") REFERENCES \"CollectionVariableSets\"(\"Id\") ON DELETE CASCADE);");
+
+        EnsureTable(db, "CollectionFolders",
+            "CREATE TABLE \"CollectionFolders\" (" +
+            "\"Id\" INTEGER PRIMARY KEY AUTOINCREMENT, " +
+            "\"CollectionId\" INTEGER NOT NULL, " +
+            "\"ParentFolderId\" INTEGER NULL, " +
+            "\"Name\" TEXT NOT NULL DEFAULT '');");
+
+        EnsureColumn(db, "Requests", "FolderId", "INTEGER NULL");
 
         EnsureGlobalBase(db);
         EnsureAppSettings(db);

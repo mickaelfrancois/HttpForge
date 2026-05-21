@@ -9,6 +9,8 @@ public class HttpRequestItem
     public int Id { get; set; }
     public int CollectionId { get; set; }
     public Collection? Collection { get; set; }
+    public int? FolderId { get; set; }
+    public CollectionFolder? Folder { get; set; }
 
     public string Name { get; set; } = "Untitled";
     public HttpMethodKind Method { get; set; } = HttpMethodKind.GET;

@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<RequestVariable> RequestVariables => Set<RequestVariable>();
     public DbSet<CollectionVariableSet> CollectionVariableSets => Set<CollectionVariableSet>();
     public DbSet<CollectionVariableEntry> CollectionVariableEntries => Set<CollectionVariableEntry>();
+    public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
     public DbSet<AppSettings> Settings => Set<AppSettings>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -27,6 +28,24 @@ public class AppDbContext : DbContext
             .WithOne(r => r.Collection!)
             .HasForeignKey(r => r.CollectionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<Collection>()
+            .HasMany(c => c.Folders)
+            .WithOne(f => f.Collection!)
+            .HasForeignKey(f => f.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<CollectionFolder>()
+            .HasMany(f => f.Children)
+            .WithOne(f => f.ParentFolder)
+            .HasForeignKey(f => f.ParentFolderId)
+            .OnDelete(DeleteBehavior.ClientCascade);
+
+        b.Entity<CollectionFolder>()
+            .HasMany(f => f.Requests)
+            .WithOne(r => r.Folder)
+            .HasForeignKey(r => r.FolderId)
+            .OnDelete(DeleteBehavior.ClientSetNull);
 
         b.Entity<Collection>()
             .HasMany(c => c.VariableSets)
