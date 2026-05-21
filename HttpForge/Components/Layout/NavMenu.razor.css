@@ -349,10 +349,6 @@ button:disabled {
     color: var(--text-primary);
 }
 
-.context-menu-item:hover:not(:disabled) {
-    background: var(--bg-hover);
-}
-
 .context-menu-item.danger {
     color: var(--accent-red, #e05252);
 }
