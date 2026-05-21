@@ -1,0 +1,47 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="json-body-editor-wrap">
+    <textarea @ref="_textareaRef"></textarea>
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public EventCallback OnBlur { get; set; }
+
+    private ElementReference _textareaRef;
+    private DotNetObjectReference<JsonBodyEditor>? _dotnetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("forge.editor.init", _textareaRef, _dotnetRef, Value, "application/json", true);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnScriptChanged(string value)
+    {
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    [JSInvokable]
+    public async Task OnEditorBlur()
+    {
+        await OnBlur.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dotnetRef is not null)
+        {
+            try { await JS.InvokeVoidAsync("forge.editor.dispose", _textareaRef); } catch { }
+        }
+        _dotnetRef?.Dispose();
+    }
+}
