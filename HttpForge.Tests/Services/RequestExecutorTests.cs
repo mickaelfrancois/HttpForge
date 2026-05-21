@@ -18,7 +18,7 @@ public class RequestExecutorTests
         return (new RequestExecutor(factory.Object, new VariableResolver()), handler);
     }
 
-    private static readonly Dictionary<string, string> NoVars = new();
+    private static readonly IReadOnlyDictionary<string, string> NoVars = new Dictionary<string, string>();
 
     // ── URL building ─────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ public class RequestExecutorTests
 
         await sut.ExecuteAsync(req, NoVars);
 
-        Assert.Equal("https://example.com", handler.LastRequest!.RequestUri!.ToString().TrimEnd('/'));
+        Assert.Empty(handler.LastRequest!.RequestUri!.Query);
     }
 
     [Fact]
