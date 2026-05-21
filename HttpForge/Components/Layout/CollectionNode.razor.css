@@ -35,6 +35,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.folder-icon {
+    font-size: 0.8rem;
+    flex-shrink: 0;
 }
 
 .folder-rename-input {

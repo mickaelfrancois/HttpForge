@@ -128,6 +128,38 @@
     border-bottom-color: var(--accent-blue);
 }
 
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    margin-left: 5px;
+    border-radius: 8px;
+    background: var(--border-main);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.tab.active .tab-badge {
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    color: var(--text-brand);
+}
+
+.tab-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--status-2xx-text, #4caf50);
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
 .tab-body {
     padding: 0.75rem 1rem;
     overflow-y: auto;

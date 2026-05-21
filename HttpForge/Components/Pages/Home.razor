@@ -62,7 +62,12 @@ else
         <div class="tabs">
             @foreach (var t in _tabs)
             {
-                <button class="tab @(t == _activeTab ? "active" : "")" @onclick="() => _activeTab = t">@t</button>
+                <button class="tab @(t == _activeTab ? "active" : "")" @onclick="() => _activeTab = t">
+                    @t
+                    @{ var _badge = TabBadgeCount(t); }
+                    @if (_badge > 0) { <span class="tab-badge">@_badge</span> }
+                    @if (TabHasDot(t)) { <span class="tab-dot"></span> }
+                </button>
             }
         </div>
 
@@ -583,4 +588,19 @@ else
 
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..max] + "…";
+
+    private int TabBadgeCount(string tab) => tab switch
+    {
+        "Params"    => _request?.QueryParams.Count(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key)) ?? 0,
+        "Headers"   => _request?.Headers.Count(h => !string.IsNullOrWhiteSpace(h.Key)) ?? 0,
+        "Variables" => _request?.Variables.Count ?? 0,
+        _           => 0
+    };
+
+    private bool TabHasDot(string tab) => tab switch
+    {
+        "Body"    => !string.IsNullOrWhiteSpace(_request?.BodyContent),
+        "Scripts" => !string.IsNullOrWhiteSpace(_request?.PostScript),
+        _         => false
+    };
 }
