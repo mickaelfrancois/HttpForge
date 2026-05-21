@@ -32,7 +32,7 @@
             }
             else
             {
-                <span class="folder-name">@folder.Name</span>
+                <span class="folder-name" @ondblclick="() => ToggleExpand(folder.Id)" @ondblclick:stopPropagation><span class="folder-icon">@(_expanded.Contains(folder.Id) ? "📂" : "📁")</span>@folder.Name</span>
                 <button class="icon-btn" title="New sub-folder" @onclick:stopPropagation @onclick="() => StartAddFolder(folder.Id)">+</button>
                 <button class="icon-btn" title="New request" @onclick:stopPropagation @onclick="() => AddRequest(folder)">↵</button>
                 <button class="icon-btn" title="Delete folder" @onclick:stopPropagation @onclick="() => DeleteFolder(folder)">🗑</button>
@@ -50,14 +50,15 @@
             </div>
         }
 
-        @if (_expanded.Contains(folder.Id))
+        @if (IsFiltering ? (FolderMatches(folder) || SubtreeHasMatch(folder.Id)) : _expanded.Contains(folder.Id))
         {
             <div class="folder-children">
                 <CollectionNode CollectionId="CollectionId"
                                 ParentFolderId="folder.Id"
                                 AllFolders="AllFolders"
                                 AllRequests="AllRequests"
-                                OnChanged="OnChanged" />
+                                OnChanged="OnChanged"
+                                FilterText="@(FolderMatches(folder) ? string.Empty : FilterText)" />
             </div>
         }
     </div>
@@ -87,14 +88,33 @@
     [Parameter, EditorRequired] public List<CollectionFolder> AllFolders { get; set; } = [];
     [Parameter, EditorRequired] public List<HttpRequestItem> AllRequests { get; set; } = [];
     [Parameter] public EventCallback<int> OnChanged { get; set; }
+    [Parameter] public string FilterText { get; set; } = string.Empty;
+
+    private bool IsFiltering => !string.IsNullOrWhiteSpace(FilterText);
+
+    private bool FolderMatches(CollectionFolder f) =>
+        f.Name.Contains(FilterText, StringComparison.OrdinalIgnoreCase);
+
+    private bool RequestMatchesFilter(HttpRequestItem r) =>
+        r.Name.Contains(FilterText, StringComparison.OrdinalIgnoreCase);
+
+    private bool SubtreeHasMatch(int folderId)
+    {
+        if (AllRequests.Any(r => r.FolderId == folderId && RequestMatchesFilter(r))) return true;
+        foreach (var child in AllFolders.Where(f => f.ParentFolderId == folderId))
+            if (FolderMatches(child) || SubtreeHasMatch(child.Id)) return true;
+        return false;
+    }
 
     private IEnumerable<CollectionFolder> DirectFolders =>
-        AllFolders.Where(f => f.CollectionId == CollectionId && f.ParentFolderId == ParentFolderId)
-                  .OrderBy(f => f.Name);
+        AllFolders.Where(f => f.CollectionId == CollectionId && f.ParentFolderId == ParentFolderId
+            && (!IsFiltering || FolderMatches(f) || SubtreeHasMatch(f.Id)))
+        .OrderBy(f => f.Name);
 
     private IEnumerable<HttpRequestItem> DirectRequests =>
-        AllRequests.Where(r => r.FolderId == ParentFolderId)
-                   .OrderByDescending(r => r.UpdatedAt);
+        AllRequests.Where(r => r.FolderId == ParentFolderId
+            && (!IsFiltering || RequestMatchesFilter(r)))
+        .OrderBy(r => r.Name);
 
     private HashSet<int> _expanded = [];
     private int? _renaming;
