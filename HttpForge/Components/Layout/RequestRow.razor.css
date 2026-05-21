@@ -1,0 +1,54 @@
+.request-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 0.82rem;
+}
+
+.request-row:hover {
+    background: var(--bg-hover);
+}
+
+.request-row.selected {
+    background: var(--bg-active);
+}
+
+.request-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.method {
+    font-weight: 700;
+    font-size: 0.65rem;
+    min-width: 2.6rem;
+    text-align: right;
+}
+
+.method-get { color: var(--method-get); }
+.method-post { color: var(--method-post); }
+.method-put { color: var(--method-put); }
+.method-patch { color: var(--method-patch); }
+.method-delete { color: var(--method-delete); }
+.method-head { color: var(--method-other); }
+.method-options { color: var(--method-other); }
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.15rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.icon-btn:hover {
+    background: var(--bg-btn-hover);
+    color: var(--text-brand);
+}
