@@ -44,7 +44,7 @@
                             @onclick="() => _openFolderMenuId = (_openFolderMenuId == folder.Id ? (int?)null : folder.Id)">
                         ⚙
                     </button>
-                    @if (_openFolderMenuId == folder.Id)
+                    @if (_openFolderMenuId == folder.Id && CanWrite)
                     {
                         <div class="context-menu">
                             <button class="context-menu-item"
@@ -92,6 +92,7 @@
                                 AllFolders="AllFolders"
                                 AllRequests="AllRequests"
                                 OnChanged="OnChanged"
+                                CanWrite="CanWrite"
                                 FilterText="@(FolderMatches(folder) ? string.Empty : FilterText)" />
             </div>
         }
@@ -101,7 +102,7 @@
 @* Requests at this level *@
 @foreach (var r in DirectRequests)
 {
-    <RequestRow Request="r" OnChanged="OnChanged" />
+    <RequestRow Request="r" CanWrite="CanWrite" OnChanged="OnChanged" />
 }
 
 @* Inline "add folder" at this level (when _addingUnder == -1) *@

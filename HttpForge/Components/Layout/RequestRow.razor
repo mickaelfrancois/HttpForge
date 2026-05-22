@@ -24,40 +24,44 @@
     else
     {
         <span class="request-name">@(string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name)</span>
-        <div class="gear-wrap @(_isHovered ? "visible" : "")">
-            <button class="icon-btn gear-btn"
-                    title="Actions"
-                    @onclick:stopPropagation
-                    @onclick="() => _menuOpen = !_menuOpen">
-                ⚙
-            </button>
-            @if (_menuOpen)
-            {
-                <div class="context-menu">
-                    <button class="context-menu-item"
-                            @onclick:stopPropagation
-                            @onclick="StartRename">
-                        <span>✏</span> Renommer
-                    </button>
-                    <button class="context-menu-item"
-                            @onclick:stopPropagation
-                            @onclick="Duplicate">
-                        <span>⎘</span> Dupliquer
-                    </button>
-                    <button class="context-menu-item danger"
-                            @onclick:stopPropagation
-                            @onclick="Delete">
-                        <span>🗑</span> Supprimer
-                    </button>
-                </div>
-            }
-        </div>
+        @if (CanWrite)
+        {
+            <div class="gear-wrap @(_isHovered ? "visible" : "")">
+                <button class="icon-btn gear-btn"
+                        title="Actions"
+                        @onclick:stopPropagation
+                        @onclick="() => _menuOpen = !_menuOpen">
+                    ⚙
+                </button>
+                @if (_menuOpen)
+                {
+                    <div class="context-menu">
+                        <button class="context-menu-item"
+                                @onclick:stopPropagation
+                                @onclick="StartRename">
+                            <span>✏</span> Renommer
+                        </button>
+                        <button class="context-menu-item"
+                                @onclick:stopPropagation
+                                @onclick="Duplicate">
+                            <span>⎘</span> Dupliquer
+                        </button>
+                        <button class="context-menu-item danger"
+                                @onclick:stopPropagation
+                                @onclick="Delete">
+                            <span>🗑</span> Supprimer
+                        </button>
+                    </div>
+                }
+            </div>
+        }
     }
 </div>
 
 @code {
     [Parameter, EditorRequired] public HttpRequestItem Request { get; set; } = null!;
     [Parameter] public EventCallback<int> OnChanged { get; set; }
+    [Parameter] public bool CanWrite { get; set; } = true;
 
     private bool _isHovered;
     private bool _menuOpen;
