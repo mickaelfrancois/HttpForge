@@ -1,0 +1,165 @@
+@page "/teams/{TeamId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject TeamService TeamService
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Team — HttpForge</PageTitle>
+
+@if (_team is null)
+{
+    <div class="admin-page"><p>Team not found or access denied.</p></div>
+}
+else
+{
+    <div class="admin-page">
+        <h2>@_team.Name</h2>
+
+        @* Members section *@
+        <h3>Members</h3>
+        @foreach (var m in _team.Members)
+        {
+            <div class="admin-team-row">
+                <span class="team-name">@m.UserId</span>
+                <span class="team-members">@m.Role</span>
+                @if (_isAdmin)
+                {
+                    <button class="btn-danger" @onclick="() => RemoveMemberAsync(m)">Remove</button>
+                }
+            </div>
+        }
+
+        @* Invite section *@
+        @if (_isAdmin)
+        {
+            <h3>Invite member</h3>
+            @if (_inviteMessage is not null)
+            {
+                <div class="invite-message">@_inviteMessage</div>
+            }
+            <div class="admin-create-team">
+                <input type="email" placeholder="Email" @bind="_inviteEmail" @bind:event="oninput" />
+                <select @bind="_inviteRole">
+                    <option value="TeamAdmin">Team Admin</option>
+                    <option value="Contributor" selected>Contributor</option>
+                    <option value="Guest">Guest</option>
+                </select>
+                <button @onclick="InviteAsync"
+                        disabled="@string.IsNullOrWhiteSpace(_inviteEmail)">
+                    Send invitation
+                </button>
+            </div>
+
+            @* Pending invitations *@
+            @if (_pendingInvitations.Count > 0)
+            {
+                <h4>Pending invitations</h4>
+                @foreach (var inv in _pendingInvitations)
+                {
+                    <div class="admin-team-row">
+                        <span class="team-name">@inv.Email</span>
+                        <span class="team-members">@inv.Role — expires @inv.ExpiresAt.ToLocalTime().ToString("g")</span>
+                        <code class="invite-link">/invite/@inv.Token</code>
+                    </div>
+                }
+            }
+
+            @* Orphaned collections *@
+            @if (_orphanedCollections.Count > 0)
+            {
+                <h3>Assign orphaned collections</h3>
+                @foreach (var col in _orphanedCollections)
+                {
+                    <div class="admin-team-row">
+                        <span class="team-name">@col.Name</span>
+                        <button @onclick="() => AssignCollectionAsync(col.Id)">
+                            Assign to @_team.Name
+                        </button>
+                    </div>
+                }
+            }
+        }
+
+        @* Collections assigned to this team *@
+        <h3>Collections</h3>
+        @foreach (var col in _teamCollections)
+        {
+            <div class="admin-team-row">
+                <span class="team-name">@col.Name</span>
+            </div>
+        }
+        @if (_teamCollections.Count == 0)
+        {
+            <p class="empty-hint">No collections assigned.</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int TeamId { get; set; }
+
+    private Team? _team;
+    private List<InvitationToken> _pendingInvitations = [];
+    private List<Collection> _orphanedCollections = [];
+    private List<Collection> _teamCollections = [];
+    private bool _isAdmin;
+    private string _inviteEmail = string.Empty;
+    private string _inviteRole = "Contributor";
+    private string? _inviteMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var isSuperAdmin = authState.User.IsInRole("SuperAdmin");
+
+        _team = await TeamService.GetTeamAsync(TeamId);
+        if (_team is null) return;
+
+        _isAdmin = isSuperAdmin
+            || _team.Members.Any(m => m.UserId == userId && m.Role == TeamRole.TeamAdmin);
+
+        if (!_isAdmin && !_team.Members.Any(m => m.UserId == userId))
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _team = await TeamService.GetTeamAsync(TeamId);
+        _teamCollections = await TeamService.GetTeamCollectionsAsync(TeamId);
+
+        if (_isAdmin)
+        {
+            _pendingInvitations = await TeamService.GetPendingInvitationsAsync(TeamId);
+            _orphanedCollections = await TeamService.GetOrphanedCollectionsAsync();
+        }
+    }
+
+    private async Task InviteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_inviteEmail)) return;
+        var role = Enum.Parse<TeamRole>(_inviteRole);
+        var inv = await TeamService.InviteMemberAsync(TeamId, _inviteEmail, role);
+        _inviteMessage = $"Invitation link: /invite/{inv.Token}";
+        _inviteEmail = string.Empty;
+        await ReloadAsync();
+    }
+
+    private async Task RemoveMemberAsync(TeamMember member)
+    {
+        await TeamService.RemoveMemberAsync(TeamId, member.UserId);
+        await ReloadAsync();
+    }
+
+    private async Task AssignCollectionAsync(int collectionId)
+    {
+        await TeamService.AssignCollectionAsync(TeamId, collectionId);
+        await ReloadAsync();
+    }
+}
