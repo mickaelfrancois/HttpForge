@@ -22,7 +22,7 @@ A self-hosted HTTP client — a lightweight alternative to Insomnia and Postman.
 ### Run locally
 
 ```bash
-git clone https://github.com/your-username/HttpForge.git
+git clone https://github.com/mickaelfrancois/HttpForge.git
 cd HttpForge
 dotnet run --project HttpForge
 ```
