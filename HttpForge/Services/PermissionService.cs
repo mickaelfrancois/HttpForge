@@ -11,6 +11,7 @@ public class PermissionService(IDbContextFactory<AppDbContext> dbFactory)
         using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var isSuperAdmin = await db.UserRoles
+            .AsNoTracking()
             .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { ur.UserId, r.Name })
             .AnyAsync(x => x.UserId == userId && x.Name == "SuperAdmin", ct);
         if (isSuperAdmin) return TeamRole.Contributor;
