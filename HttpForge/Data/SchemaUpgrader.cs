@@ -82,6 +82,7 @@ public static class SchemaUpgrader
             "\"TeamId\" INTEGER NOT NULL, " +
             "\"UserId\" TEXT NOT NULL DEFAULT '', " +
             "\"Role\" INTEGER NOT NULL DEFAULT 1, " +
+            "UNIQUE (\"TeamId\", \"UserId\"), " +
             "FOREIGN KEY (\"TeamId\") REFERENCES \"Teams\"(\"Id\") ON DELETE CASCADE);");
 
         EnsureTable(db, "InvitationTokens",
