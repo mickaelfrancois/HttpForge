@@ -1,9 +1,10 @@
 using HttpForge.Data.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace HttpForge.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<AppUser>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -14,15 +15,20 @@ public class AppDbContext : DbContext
     public DbSet<FormFieldItem> FormFields => Set<FormFieldItem>();
     public DbSet<AppEnvironment> Environments => Set<AppEnvironment>();
     public DbSet<EnvironmentVariable> EnvironmentVariables => Set<EnvironmentVariable>();
-    public DbSet<CollectionVariable> CollectionVariables => Set<CollectionVariable>(); // kept for migration
+    public DbSet<CollectionVariable> CollectionVariables => Set<CollectionVariable>();
     public DbSet<RequestVariable> RequestVariables => Set<RequestVariable>();
     public DbSet<CollectionVariableSet> CollectionVariableSets => Set<CollectionVariableSet>();
     public DbSet<CollectionVariableEntry> CollectionVariableEntries => Set<CollectionVariableEntry>();
     public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
     public DbSet<AppSettings> Settings => Set<AppSettings>();
+    public DbSet<Team> Teams => Set<Team>();
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+    public DbSet<InvitationToken> InvitationTokens => Set<InvitationToken>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        base.OnModelCreating(b); // must be first — registers Identity entity configurations
+
         b.Entity<Collection>()
             .HasMany(c => c.Requests)
             .WithOne(r => r.Collection!)
