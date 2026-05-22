@@ -5,6 +5,8 @@
 @inject RequestExecutor Executor
 @inject ScriptRunner ScriptRunner
 @inject IJSRuntime JS
+@inject PermissionService PermissionService
+@inject AuthenticationStateProvider AuthProvider
 @implements IDisposable
 
 <PageTitle>HttpForge</PageTitle>
@@ -18,6 +20,12 @@
 }
 else
 {
+    @if (State.IsReadOnly)
+    {
+        <div class="guest-banner">
+            Vous êtes en mode lecture — vos modifications ne seront pas enregistrées.
+        </div>
+    }
     <div class="editor">
         <div class="request-name-row">
             <input class="request-name-input" value="@_request.Name"
@@ -315,6 +323,8 @@ else
             _collectionBase = null;
             _collectionSubset = null;
             _result = null;
+            State.SelectedCollectionId = null;
+            State.IsReadOnly = false;
             RebuildVariables();
             return;
         }
@@ -337,6 +347,20 @@ else
         _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
             ? collection.VariableSets.FirstOrDefault(s => s.Id == sid && !s.IsBase)
             : null;
+
+        State.SelectedCollectionId = _request?.CollectionId;
+        if (_request is not null)
+        {
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            State.IsReadOnly = userId is not null
+                ? await PermissionService.IsReadOnlyAsync(userId, _request.CollectionId)
+                : true;
+        }
+        else
+        {
+            State.IsReadOnly = false;
+        }
 
         RebuildVariables();
     }
@@ -363,6 +387,7 @@ else
     private async Task OnMethodChanged(ChangeEventArgs e)
     {
         if (_request is null) return;
+        if (State.IsReadOnly) return;
         if (Enum.TryParse<HttpMethodKind>(e.Value?.ToString(), out var m))
         {
             _request.Method = m;
@@ -385,6 +410,7 @@ else
     private async Task OnPostScriptChanged(string value)
     {
         if (_request is null) return;
+        if (State.IsReadOnly) return;
         _request.PostScript = value;
         await SaveRequestDebounced();
     }
@@ -392,6 +418,7 @@ else
     private async Task OnBodyKindChanged(BodyKind kind)
     {
         if (_request is null) return;
+        if (State.IsReadOnly) return;
         _request.BodyKind = kind;
         await SaveRequestDebounced();
     }
@@ -399,6 +426,7 @@ else
     private async Task SaveRequestDebounced()
     {
         if (_request is null) return;
+        if (State.IsReadOnly) return;
         _request.UpdatedAt = DateTime.UtcNow;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Requests.Update(_request);
@@ -408,6 +436,7 @@ else
 
     private async Task SaveHeaderAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var h = (HeaderItem)item;
         using var db = await DbFactory.CreateDbContextAsync();
         if (h.Id == 0) db.Headers.Add(h);
@@ -417,6 +446,7 @@ else
 
     private async Task RemoveHeaderAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var h = (HeaderItem)item;
         if (h.Id == 0) { _request?.Headers.Remove(h); return; }
         using var db = await DbFactory.CreateDbContextAsync();
@@ -427,6 +457,7 @@ else
 
     private async Task SaveQueryParamAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var p = (QueryParamItem)item;
         using var db = await DbFactory.CreateDbContextAsync();
         if (p.Id == 0) db.QueryParams.Add(p);
@@ -436,6 +467,7 @@ else
 
     private async Task RemoveQueryParamAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var p = (QueryParamItem)item;
         if (p.Id == 0) { _request?.QueryParams.Remove(p); return; }
         using var db = await DbFactory.CreateDbContextAsync();
@@ -446,6 +478,7 @@ else
 
     private async Task SaveFormFieldAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var f = (FormFieldItem)item;
         using var db = await DbFactory.CreateDbContextAsync();
         if (f.Id == 0) db.FormFields.Add(f);
@@ -455,6 +488,7 @@ else
 
     private async Task RemoveFormFieldAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var f = (FormFieldItem)item;
         if (f.Id == 0) { _request?.FormFields.Remove(f); return; }
         using var db = await DbFactory.CreateDbContextAsync();
@@ -465,6 +499,7 @@ else
 
     private async Task SaveRequestVarAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var v = (RequestVariable)item;
         using var db = await DbFactory.CreateDbContextAsync();
         if (v.Id == 0) db.RequestVariables.Add(v);
@@ -475,6 +510,7 @@ else
 
     private async Task RemoveRequestVarAsync(object item)
     {
+        if (State.IsReadOnly) return;
         var v = (RequestVariable)item;
         if (v.Id == 0) { _request?.Variables.Remove(v); RebuildVariables(); return; }
         using var db = await DbFactory.CreateDbContextAsync();
