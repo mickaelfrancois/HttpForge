@@ -14,9 +14,9 @@ public class InvitationService(IDbContextFactory<AppDbContext> dbFactory)
         return Convert.ToHexString(bytes).ToLower();
     }
 
-    public async Task<InvitationToken> CreateAsync(int? teamId, string email, string role)
+    public async Task<InvitationToken> CreateAsync(int? teamId, string email, string role, CancellationToken ct = default)
     {
-        using var db = await dbFactory.CreateDbContextAsync();
+        using var db = await dbFactory.CreateDbContextAsync(ct);
         var invitation = new InvitationToken
         {
             TeamId = teamId,
@@ -26,26 +26,27 @@ public class InvitationService(IDbContextFactory<AppDbContext> dbFactory)
             ExpiresAt = DateTime.UtcNow.AddHours(72)
         };
         db.InvitationTokens.Add(invitation);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
         return invitation;
     }
 
-    public async Task<InvitationToken?> ValidateAsync(string token)
+    public async Task<InvitationToken?> ValidateAsync(string token, CancellationToken ct = default)
     {
-        using var db = await dbFactory.CreateDbContextAsync();
+        using var db = await dbFactory.CreateDbContextAsync(ct);
         var invitation = await db.InvitationTokens
-            .FirstOrDefaultAsync(i => i.Token == token);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Token == token, ct);
         if (invitation is null) return null;
         if (invitation.UsedAt is not null) return null;
         if (invitation.ExpiresAt < DateTime.UtcNow) return null;
         return invitation;
     }
 
-    public async Task MarkUsedAsync(int invitationId)
+    public async Task MarkUsedAsync(int invitationId, CancellationToken ct = default)
     {
-        using var db = await dbFactory.CreateDbContextAsync();
-        var invitation = await db.InvitationTokens.FirstAsync(i => i.Id == invitationId);
+        using var db = await dbFactory.CreateDbContextAsync(ct);
+        var invitation = await db.InvitationTokens.FirstAsync(i => i.Id == invitationId, ct);
         invitation.UsedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 }

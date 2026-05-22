@@ -83,4 +83,12 @@ public class InvitationServiceTests : IDisposable
 
         Assert.Null(result);
     }
+
+    [Fact]
+    public async Task CreateAsync_NormalizesEmail()
+    {
+        var inv = await _sut.CreateAsync(teamId: null, email: "  USER@Example.COM  ", role: "Guest");
+
+        Assert.Equal("user@example.com", inv.Email);
+    }
 }
