@@ -3,6 +3,8 @@
 @inject AppState State
 @inject IJSRuntime JS
 @inject InsomniaImporter Importer
+@inject PermissionService PermissionService
+@inject AuthenticationStateProvider AuthProvider
 @implements IDisposable
 
 <div class="brand">
@@ -118,7 +120,10 @@
         ↓
         <InputFile accept=".yaml" multiple OnChange="OnImportFiles" style="display:none" />
     </label>
-    <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
+    @if (_canCreateCollections)
+    {
+        <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
+    }
 </div>
 
 <div class="collection-tree">
@@ -154,21 +159,24 @@
                                     @onclick="() => { ToggleCollVarEditor(c.Id); _openCollectionMenuId = null; }">
                                 <span>⚙</span> Variables de collection
                             </button>
-                            <button class="context-menu-item"
-                                    @onclick:stopPropagation
-                                    @onclick="() => { StartAddFolder(c.Id); _openCollectionMenuId = null; }">
-                                <span>📁</span> Nouveau dossier
-                            </button>
-                            <button class="context-menu-item"
-                                    @onclick:stopPropagation
-                                    @onclick="() => { _ = AddRequest(c); _openCollectionMenuId = null; }">
-                                <span>＋</span> Nouvelle requête
-                            </button>
-                            <button class="context-menu-item danger"
-                                    @onclick:stopPropagation
-                                    @onclick="() => { _ = DeleteCollection(c); _openCollectionMenuId = null; }">
-                                <span>🗑</span> Supprimer la collection
-                            </button>
+                            @if (_writableCollectionIds.Contains(c.Id))
+                            {
+                                <button class="context-menu-item"
+                                        @onclick:stopPropagation
+                                        @onclick="() => { StartAddFolder(c.Id); _openCollectionMenuId = null; }">
+                                    <span>📁</span> Nouveau dossier
+                                </button>
+                                <button class="context-menu-item"
+                                        @onclick:stopPropagation
+                                        @onclick="() => { _ = AddRequest(c); _openCollectionMenuId = null; }">
+                                    <span>＋</span> Nouvelle requête
+                                </button>
+                                <button class="context-menu-item danger"
+                                        @onclick:stopPropagation
+                                        @onclick="() => { _ = DeleteCollection(c); _openCollectionMenuId = null; }">
+                                    <span>🗑</span> Supprimer la collection
+                                </button>
+                            }
                         </div>
                     }
                 </div>
@@ -267,6 +275,7 @@
                                     AllFolders="_allFolders.Where(f => f.CollectionId == c.Id).ToList()"
                                     AllRequests="c.Requests"
                                     OnChanged="ReloadAndNotify"
+                                    CanWrite="_writableCollectionIds.Contains(c.Id)"
                                     FilterText="@(string.IsNullOrWhiteSpace(_filterText) || c.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ? string.Empty : _filterText)" />
                     @if (!c.Requests.Any(r => r.FolderId == null) &&
                          !_allFolders.Any(f => f.CollectionId == c.Id))
@@ -287,6 +296,9 @@
     private List<Collection> _collections = new();
     private List<CollectionFolder> _allFolders = [];
     private AppEnvironment? _globalBase;
+    private string? _currentUserId;
+    private HashSet<int> _writableCollectionIds = [];
+    private bool _canCreateCollections;
     private List<AppEnvironment> _globalSubsets = new();
     private HashSet<int> _expanded = new();
     private string _filterText = string.Empty;
@@ -307,6 +319,8 @@
     {
         State.OnChange += OnStateChanged;
         await LoadSettingsAsync();
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         await ReloadAsync();
     }
 
@@ -456,11 +470,42 @@
     private async Task ReloadAsync()
     {
         using var db = await DbFactory.CreateDbContextAsync();
-        _collections = await db.Collections
-            .Include(c => c.Requests)
-            .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
-            .OrderBy(c => c.Name)
-            .ToListAsync();
+
+        if (_currentUserId is null)
+        {
+            _collections = [];
+        }
+        else
+        {
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            var isSuperAdmin = authState.User.IsInRole("SuperAdmin");
+
+            if (isSuperAdmin)
+            {
+                _collections = await db.Collections
+                    .Include(c => c.Requests)
+                    .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
+                    .OrderBy(c => c.Name)
+                    .ToListAsync();
+            }
+            else
+            {
+                var teamIds = await db.TeamMembers
+                    .Where(m => m.UserId == _currentUserId)
+                    .Select(m => m.TeamId)
+                    .ToListAsync();
+
+                _collections = await db.Collections
+                    .Include(c => c.Requests)
+                    .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
+                    .Where(c => c.TeamId.HasValue && teamIds.Contains(c.TeamId.Value))
+                    .OrderBy(c => c.Name)
+                    .ToListAsync();
+            }
+        }
+
+        await RefreshPermissionsAsync();
+
         _allFolders = await db.CollectionFolders.ToListAsync();
         var envs = await db.Environments
             .Include(e => e.Variables)
@@ -468,6 +513,27 @@
             .ToListAsync();
         _globalBase = envs.FirstOrDefault(e => e.IsBase);
         _globalSubsets = envs.Where(e => !e.IsBase).ToList();
+    }
+
+    private async Task RefreshPermissionsAsync()
+    {
+        if (_currentUserId is null) return;
+
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var isSuperAdmin = authState.User.IsInRole("SuperAdmin");
+
+        _writableCollectionIds.Clear();
+        foreach (var c in _collections)
+        {
+            var role = isSuperAdmin
+                ? TeamRole.Contributor
+                : (await PermissionService.GetRoleForCollectionAsync(_currentUserId, c.Id));
+            if (role is TeamRole.Contributor or TeamRole.TeamAdmin)
+                _writableCollectionIds.Add(c.Id);
+        }
+
+        _canCreateCollections = isSuperAdmin || _writableCollectionIds.Count > 0
+            || _collections.Count == 0;
     }
 
     private void ToggleCollection(int id)
@@ -575,7 +641,17 @@
     {
         if (string.IsNullOrWhiteSpace(_newCollectionName)) return;
         using var db = await DbFactory.CreateDbContextAsync();
-        var c = new Collection { Name = _newCollectionName.Trim() };
+
+        int? teamId = null;
+        if (_currentUserId is not null)
+        {
+            var member = await db.TeamMembers
+                .Where(m => m.UserId == _currentUserId && m.Role != TeamRole.Guest)
+                .FirstOrDefaultAsync();
+            teamId = member?.TeamId;
+        }
+
+        var c = new Collection { Name = _newCollectionName.Trim(), TeamId = teamId };
         db.Collections.Add(c);
         await db.SaveChangesAsync();
         _expanded.Add(c.Id);

@@ -123,6 +123,7 @@
     [Parameter, EditorRequired] public List<HttpRequestItem> AllRequests { get; set; } = [];
     [Parameter] public EventCallback<int> OnChanged { get; set; }
     [Parameter] public string FilterText { get; set; } = string.Empty;
+    [Parameter] public bool CanWrite { get; set; } = true;
 
     private bool IsFiltering => !string.IsNullOrWhiteSpace(FilterText);
 
