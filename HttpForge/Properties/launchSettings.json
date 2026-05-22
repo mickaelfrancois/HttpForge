@@ -4,7 +4,8 @@
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "HTTPFORGE_SUPERADMIN_EMAIL": "mfrancois@francois.ovh"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5078"
@@ -22,10 +23,11 @@
       "commandName": "Docker",
       "launchBrowser": true,
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
-      "environmentVariables": {
-        "ASPNETCORE_HTTPS_PORTS": "8081",
-        "ASPNETCORE_HTTP_PORTS": "8080"
-      },
+        "environmentVariables": {
+            "ASPNETCORE_HTTPS_PORTS": "8081",
+            "ASPNETCORE_HTTP_PORTS": "8080",
+            "HTTPFORGE_SUPERADMIN_EMAIL": "mfrancois@francois.ovh"
+        },
       "publishAllPorts": true,
       "useSSL": true
     }

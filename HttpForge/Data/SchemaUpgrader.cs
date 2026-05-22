@@ -95,6 +95,12 @@ public static class SchemaUpgrader
             "\"ExpiresAt\" TEXT NOT NULL DEFAULT (datetime('now')), " +
             "\"UsedAt\" TEXT NULL);");
 
+        EnsureColumn(db, "InvitationTokens", "Email", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(db, "InvitationTokens", "Role", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(db, "InvitationTokens", "Token", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(db, "InvitationTokens", "ExpiresAt", "TEXT NOT NULL DEFAULT (datetime('now'))");
+        EnsureColumn(db, "InvitationTokens", "UsedAt", "TEXT NULL");
+
         EnsureGlobalBase(db);
         EnsureAppSettings(db);
         MigrateCollectionVariables(db);
