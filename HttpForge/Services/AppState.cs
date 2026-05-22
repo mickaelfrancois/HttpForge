@@ -11,6 +11,7 @@ public class AppState
     public int? SelectedEnvironmentId { get; set; }
     public int? SelectedRequestId { get; set; }
     public int? SelectedCollectionId { get; set; }
+    public int? ActiveTeamId { get; set; }
     public bool IsReadOnly { get; set; }
 
     public event Action? OnChange;
