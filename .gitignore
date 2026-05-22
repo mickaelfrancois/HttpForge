@@ -25,6 +25,9 @@
 .DS_Store
 Thumbs.db
 
+## Data Protection keys — contain signing material, must not be committed
+keys/
+
 ## Secrets — local overrides with credentials must never be committed
 appsettings.Development.json
 appsettings.*.json

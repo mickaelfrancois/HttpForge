@@ -2,6 +2,7 @@ using HttpForge.Components;
 using HttpForge.Data;
 using HttpForge.Data.Entities;
 using HttpForge.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -16,6 +17,11 @@ var dataDir = Environment.GetEnvironmentVariable("HTTPFORGE_DATA")
 Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "httpforge.db");
 builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+
+// Persist Data Protection keys to disk so auth cookies survive app restarts.
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "keys")))
+    .SetApplicationName("HttpForge");
 
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
