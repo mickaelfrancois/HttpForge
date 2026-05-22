@@ -156,7 +156,7 @@
             // SignInAsync cannot set cookies inside a Blazor circuit — redirect to
             // a server-side endpoint with a short-lived one-time token (5 min).
             var signInToken = PostRegTokens.CreateToken(user.Id);
-            Navigation.NavigateTo($"/auth/sign-in-after-invite?token={Uri.EscapeDataString(signInToken)}", forceLoad: true);
+            Navigation.NavigateTo($"/auth/complete-sign-in?token={Uri.EscapeDataString(signInToken)}", forceLoad: true);
         }
         catch (Exception ex)
         {

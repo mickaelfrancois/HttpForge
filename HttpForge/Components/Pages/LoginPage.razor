@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject SignInManager<AppUser> SignInManager
 @inject UserManager<AppUser> UserManager
+@inject PostRegistrationTokenService PostRegTokens
 @inject NavigationManager Navigation
 @inject IDbContextFactory<AppDbContext> DbFactory
 
@@ -79,10 +80,15 @@
         _busy = true;
         _errorMessage = null;
 
-        var result = await SignInManager.PasswordSignInAsync(_email.Trim(), _password, false, false);
-        if (result.Succeeded)
+        // PasswordSignInAsync cannot set cookies inside a Blazor circuit.
+        // Validate credentials manually, then redirect to the server-side endpoint.
+        var user = await UserManager.FindByEmailAsync(_email.Trim());
+        if (user is not null && await UserManager.CheckPasswordAsync(user, _password))
         {
-            Navigation.NavigateTo(_returnUrl, forceLoad: true);
+            var token = PostRegTokens.CreateToken(user.Id);
+            Navigation.NavigateTo(
+                $"/auth/complete-sign-in?token={Uri.EscapeDataString(token)}&returnUrl={Uri.EscapeDataString(_returnUrl)}",
+                forceLoad: true);
             return;
         }
 

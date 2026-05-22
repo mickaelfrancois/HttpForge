@@ -179,21 +179,23 @@ app.MapGet("/auth/external-callback", async (
     return Results.Redirect(SafeReturn(returnUrl));
 }).AllowAnonymous();
 
-// Post-invite sign-in — called by InvitePage after successful registration.
-// InvitePage runs inside a Blazor circuit and cannot set cookies directly,
-// so it redirects here with a short-lived one-time token (5 min, consumed on use).
-app.MapGet("/auth/sign-in-after-invite", async (
+// Unified sign-in endpoint — used by both LoginPage and InvitePage.
+// Blazor circuits cannot set auth cookies (response already started via WebSocket),
+// so components validate credentials/registration then redirect here with a
+// short-lived one-time token (5 min, consumed on use).
+app.MapGet("/auth/complete-sign-in", async (
     string token,
+    string? returnUrl,
     PostRegistrationTokenService tokenService,
     SignInManager<AppUser> signInManager,
     UserManager<AppUser> userManager) =>
 {
     var userId = tokenService.Consume(token);
-    if (userId is null) return Results.Redirect("/login?error=create-failed");
+    if (userId is null) return Results.Redirect("/login?error=external-failed");
     var user = await userManager.FindByIdAsync(userId);
-    if (user is null) return Results.Redirect("/login?error=create-failed");
+    if (user is null) return Results.Redirect("/login?error=external-failed");
     await signInManager.SignInAsync(user, isPersistent: false);
-    return Results.Redirect("/");
+    return Results.Redirect(SafeReturn(returnUrl));
 }).AllowAnonymous();
 
 // Logout
