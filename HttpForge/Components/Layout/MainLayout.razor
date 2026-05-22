@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Navigation
 
 <ThemeToggle />
 <div class="forge-shell">
@@ -7,6 +8,14 @@
     </aside>
     <div class="forge-resize-handle"></div>
     <main class="forge-main">
+        <AuthorizeView>
+            <Authorized>
+                <div class="user-header">
+                    <span class="user-email">@context.User.Identity?.Name</span>
+                    <a class="btn-logout" href="/auth/logout">Logout</a>
+                </div>
+            </Authorized>
+        </AuthorizeView>
         @Body
     </main>
 </div>

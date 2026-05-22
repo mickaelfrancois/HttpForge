@@ -168,6 +168,12 @@ app.MapPost("/auth/logout", async (SignInManager<AppUser> signInManager) =>
     return Results.Redirect("/login");
 });
 
+app.MapGet("/auth/logout", async (SignInManager<AppUser> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/login");
+}).AllowAnonymous();
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
