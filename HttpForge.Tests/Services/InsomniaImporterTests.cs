@@ -127,7 +127,7 @@ public class InsomniaImporterTests : IDisposable
         Assert.Equal("Auth", folder.Name);
         var req = await ctx.Requests.SingleAsync();
         Assert.Equal(folder.Id, req.FolderId);
-        Assert.NotNull(folder.CollectionId);
+        Assert.NotEqual(0, folder.CollectionId);
     }
 
     [Fact]
