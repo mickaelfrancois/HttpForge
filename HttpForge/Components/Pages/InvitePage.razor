@@ -99,6 +99,16 @@
 
         try
         {
+            // Re-validate to guard against race conditions (e.g. two tabs using the same link)
+            var fresh = await InvitationService.ValidateAsync(Token);
+            if (fresh is null)
+            {
+                _invitation = null;
+                _busy = false;
+                return;
+            }
+            _invitation = fresh;
+
             var user = new AppUser
             {
                 UserName = _invitation.Email,

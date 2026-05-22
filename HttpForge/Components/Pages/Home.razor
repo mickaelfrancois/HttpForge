@@ -551,7 +551,7 @@ else
                     activeGlobalEnvId,
                     _resolvedVariables);
 
-                if (_scriptResult is not null)
+                if (_scriptResult is not null && !State.IsReadOnly)
                     ApplyScriptMutationsToMemory(_scriptResult);
             }
         }

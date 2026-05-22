@@ -532,8 +532,7 @@
                 _writableCollectionIds.Add(c.Id);
         }
 
-        _canCreateCollections = isSuperAdmin || _writableCollectionIds.Count > 0
-            || _collections.Count == 0;
+        _canCreateCollections = isSuperAdmin || _writableCollectionIds.Count > 0;
     }
 
     private void ToggleCollection(int id)

@@ -144,7 +144,7 @@ else
     private async Task InviteAsync()
     {
         if (string.IsNullOrWhiteSpace(_inviteEmail)) return;
-        var role = Enum.Parse<TeamRole>(_inviteRole);
+        if (!Enum.TryParse<TeamRole>(_inviteRole, out var role)) return;
         var inv = await TeamService.InviteMemberAsync(TeamId, _inviteEmail, role);
         _inviteMessage = $"Invitation link: /invite/{inv.Token}";
         _inviteEmail = string.Empty;

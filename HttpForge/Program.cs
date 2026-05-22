@@ -142,10 +142,22 @@ app.MapGet("/auth/external-callback", async (
     var createResult = await userManager.CreateAsync(user);
     if (!createResult.Succeeded) return Results.Redirect("/login?error=create-failed");
 
-    await userManager.AddLoginAsync(user, info);
+    var loginResult = await userManager.AddLoginAsync(user, info);
+    if (!loginResult.Succeeded)
+    {
+        await userManager.DeleteAsync(user);
+        return Results.Redirect("/login?error=create-failed");
+    }
 
     if (invitation.Role == "SuperAdmin")
-        await userManager.AddToRoleAsync(user, "SuperAdmin");
+    {
+        var roleResult = await userManager.AddToRoleAsync(user, "SuperAdmin");
+        if (!roleResult.Succeeded)
+        {
+            await userManager.DeleteAsync(user);
+            return Results.Redirect("/login?error=create-failed");
+        }
+    }
     else if (invitation.TeamId.HasValue)
         db.TeamMembers.Add(new TeamMember
         {
