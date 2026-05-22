@@ -31,13 +31,19 @@ public static class SuperAdminBootstrap
 
         var bytes = new byte[32];
         RandomNumberGenerator.Fill(bytes);
+        var token = Convert.ToHexString(bytes).ToLower();
         db.InvitationTokens.Add(new InvitationToken
         {
             Email = normalizedEmail,
             Role = "SuperAdmin",
-            Token = Convert.ToHexString(bytes).ToLower(),
+            Token = token,
             ExpiresAt = DateTime.UtcNow.AddDays(365)
         });
         await db.SaveChangesAsync();
+
+        Console.WriteLine("=== HttpForge SuperAdmin invitation ===");
+        Console.WriteLine($"Email : {normalizedEmail}");
+        Console.WriteLine($"Link  : /invite/{token}");
+        Console.WriteLine("=======================================");
     }
 }
