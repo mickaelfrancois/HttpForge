@@ -9,7 +9,7 @@ public static class SchemaUpgrader
         "Collections", "Environments", "EnvironmentVariables",
         "CollectionVariables", "RequestVariables", "AppSettings",
         "CollectionVariableSets", "CollectionVariableEntries", "Requests",
-        "CollectionFolders"
+        "CollectionFolders", "Teams", "TeamMembers", "InvitationTokens"
     ];
     public static void Apply(AppDbContext db)
     {
@@ -67,6 +67,32 @@ public static class SchemaUpgrader
             "FOREIGN KEY (\"CollectionId\") REFERENCES \"Collections\"(\"Id\") ON DELETE CASCADE);");
 
         EnsureColumn(db, "Requests", "FolderId", "INTEGER NULL");
+
+        EnsureColumn(db, "Collections", "TeamId", "INTEGER NULL");
+
+        EnsureTable(db, "Teams",
+            "CREATE TABLE \"Teams\" (" +
+            "\"Id\" INTEGER PRIMARY KEY AUTOINCREMENT, " +
+            "\"Name\" TEXT NOT NULL DEFAULT '', " +
+            "\"CreatedAt\" TEXT NOT NULL DEFAULT (datetime('now')));");
+
+        EnsureTable(db, "TeamMembers",
+            "CREATE TABLE \"TeamMembers\" (" +
+            "\"Id\" INTEGER PRIMARY KEY AUTOINCREMENT, " +
+            "\"TeamId\" INTEGER NOT NULL, " +
+            "\"UserId\" TEXT NOT NULL DEFAULT '', " +
+            "\"Role\" INTEGER NOT NULL DEFAULT 1, " +
+            "FOREIGN KEY (\"TeamId\") REFERENCES \"Teams\"(\"Id\") ON DELETE CASCADE);");
+
+        EnsureTable(db, "InvitationTokens",
+            "CREATE TABLE \"InvitationTokens\" (" +
+            "\"Id\" INTEGER PRIMARY KEY AUTOINCREMENT, " +
+            "\"TeamId\" INTEGER NULL, " +
+            "\"Email\" TEXT NOT NULL DEFAULT '', " +
+            "\"Role\" TEXT NOT NULL DEFAULT '', " +
+            "\"Token\" TEXT NOT NULL DEFAULT '', " +
+            "\"ExpiresAt\" TEXT NOT NULL DEFAULT (datetime('now')), " +
+            "\"UsedAt\" TEXT NULL);");
 
         EnsureGlobalBase(db);
         EnsureAppSettings(db);
