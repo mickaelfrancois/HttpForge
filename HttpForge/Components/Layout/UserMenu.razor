@@ -1,0 +1,46 @@
+@rendermode InteractiveServer
+@inject AuthenticationStateProvider AuthProvider
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<AuthorizeView>
+    <Authorized>
+        <span class="user-email">@context.User.Identity?.Name</span>
+
+        @if (_isSuperAdmin)
+        {
+            <a class="user-nav-link" href="/admin">Admin</a>
+        }
+
+        @foreach (var t in _teams)
+        {
+            <a class="user-nav-link" href="/teams/@t.Id">@t.Name</a>
+        }
+
+        <a class="btn-logout" href="/auth/logout">Logout</a>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private bool _isSuperAdmin;
+    private List<(int Id, string Name)> _teams = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        if (user.Identity?.IsAuthenticated != true) return;
+
+        _isSuperAdmin = user.IsInRole("SuperAdmin");
+
+        var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (userId is null) return;
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        _teams = await db.TeamMembers
+            .Where(m => m.UserId == userId)
+            .Select(m => new { m.TeamId, m.Team!.Name })
+            .AsNoTracking()
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(x => (x.TeamId, x.Name)).ToList());
+    }
+}

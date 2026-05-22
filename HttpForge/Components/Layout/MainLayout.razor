@@ -8,12 +8,7 @@
     <div class="forge-resize-handle"></div>
     <main class="forge-main">
         <div class="user-header">
-            <AuthorizeView>
-                <Authorized>
-                    <span class="user-email">@context.User.Identity?.Name</span>
-                    <a class="btn-logout" href="/auth/logout">Logout</a>
-                </Authorized>
-            </AuthorizeView>
+            <UserMenu />
             <ThemeToggle />
         </div>
         @Body
