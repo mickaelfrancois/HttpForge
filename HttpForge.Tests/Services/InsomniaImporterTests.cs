@@ -127,6 +127,7 @@ public class InsomniaImporterTests : IDisposable
         Assert.Equal("Auth", folder.Name);
         var req = await ctx.Requests.SingleAsync();
         Assert.Equal(folder.Id, req.FolderId);
+        Assert.NotNull(folder.CollectionId);
     }
 
     [Fact]
@@ -349,7 +350,7 @@ public class InsomniaImporterTests : IDisposable
 
         Assert.Equal(0, result.RequestsCreated);
         await using var ctx = Ctx();
-        Assert.Empty(ctx.Requests.ToList());
+        Assert.Empty(await ctx.Requests.ToListAsync());
     }
 
     [Fact]
@@ -364,6 +365,6 @@ public class InsomniaImporterTests : IDisposable
 
         Assert.Contains(result.Warnings, w => w.Contains("Unrecognized workspace type"));
         await using var ctx = Ctx();
-        Assert.Empty(ctx.Collections.ToList());
+        Assert.Empty(await ctx.Collections.ToListAsync());
     }
 }
