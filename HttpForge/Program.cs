@@ -25,6 +25,7 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 8;
     options.SignIn.RequireConfirmedAccount = false;
+    options.User.RequireUniqueEmail = true;
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
@@ -138,6 +139,10 @@ app.MapGet("/auth/external-callback", async (
         .FirstOrDefaultAsync();
 
     if (invitation is null) return Results.Redirect("/login?error=no-invitation");
+
+    // Reject if a local account already exists for this email
+    if (await userManager.FindByEmailAsync(email) is not null)
+        return Results.Redirect("/login?error=already-exists");
 
     var user = new AppUser { UserName = email, Email = email, EmailConfirmed = true };
     var createResult = await userManager.CreateAsync(user);
