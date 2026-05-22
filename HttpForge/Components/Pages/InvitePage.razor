@@ -108,7 +108,7 @@
             var existing = await UserManager.FindByEmailAsync(_invitation.Email);
             if (existing is not null)
             {
-                _errorMessage = "Un compte existe déjà avec cette adresse. Connectez-vous directement.";
+                _errorMessage = "An account already exists with this email address. Please log in directly.";
                 _busy = false;
                 return;
             }
