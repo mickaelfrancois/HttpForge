@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Éléments de solution/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="HttpForge.Tests/HttpForge.Tests.csproj" />
   <Project Path="HttpForge/HttpForge.csproj" />
 </Solution>
