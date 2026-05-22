@@ -173,6 +173,19 @@ app.MapGet("/auth/external-callback", async (
     return Results.Redirect(SafeReturn(returnUrl));
 }).AllowAnonymous();
 
+// Post-invite sign-in — called by InvitePage after successful registration.
+// InvitePage runs inside a Blazor circuit and cannot set cookies directly.
+app.MapGet("/auth/sign-in-after-invite", async (
+    string userId,
+    SignInManager<AppUser> signInManager,
+    UserManager<AppUser> userManager) =>
+{
+    var user = await userManager.FindByIdAsync(userId);
+    if (user is null) return Results.Redirect("/login?error=create-failed");
+    await signInManager.SignInAsync(user, isPersistent: false);
+    return Results.Redirect("/");
+}).AllowAnonymous();
+
 // Logout
 app.MapPost("/auth/logout", async (SignInManager<AppUser> signInManager) =>
 {

@@ -6,6 +6,7 @@
 @inject UserManager<AppUser> UserManager
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject NavigationManager Navigation
+@inject ILogger<InvitePage> Logger
 
 <PageTitle>Join — HttpForge</PageTitle>
 
@@ -149,12 +150,14 @@
             await db.SaveChangesAsync();
             await InvitationService.MarkUsedAsync(_invitation.Id);
 
-            await SignInManager.SignInAsync(user, isPersistent: false);
-            _done = true;
+            // SignInAsync cannot set cookies inside a Blazor circuit — redirect to
+            // the server-side sign-in endpoint which does a real HTTP sign-in.
+            Navigation.NavigateTo($"/auth/sign-in-after-invite?userId={Uri.EscapeDataString(user.Id)}", forceLoad: true);
         }
-        catch
+        catch (Exception ex)
         {
-            _errorMessage = "An unexpected error occurred. Please try again.";
+            Logger.LogError(ex, "Registration failed for token {Token}", Token);
+            _errorMessage = $"Erreur : {ex.Message}";
             _busy = false;
         }
     }
