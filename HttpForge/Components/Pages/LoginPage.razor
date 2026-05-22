@@ -37,6 +37,10 @@
             <input type="email" placeholder="Email" @bind="_email" @bind:event="oninput" />
             <input type="password" placeholder="Password" @bind="_password" @bind:event="oninput"
                    @onkeydown="OnKeyDown" />
+            <label class="auth-remember">
+                <input type="checkbox" @bind="_rememberMe" />
+                Remember me
+            </label>
             <button @onclick="LoginAsync" disabled="@_busy">
                 @(_busy ? "Signing in…" : "Sign in")
             </button>
@@ -50,6 +54,7 @@
 
     private string _email = string.Empty;
     private string _password = string.Empty;
+    private bool _rememberMe;
     private string? _errorMessage;
     private bool _busy;
     private string _returnUrl = "/";
@@ -85,7 +90,7 @@
         var user = await UserManager.FindByEmailAsync(_email.Trim());
         if (user is not null && await UserManager.CheckPasswordAsync(user, _password))
         {
-            var token = PostRegTokens.CreateToken(user.Id);
+            var token = PostRegTokens.CreateToken(user.Id, _rememberMe);
             Navigation.NavigateTo(
                 $"/auth/complete-sign-in?token={Uri.EscapeDataString(token)}&returnUrl={Uri.EscapeDataString(_returnUrl)}",
                 forceLoad: true);

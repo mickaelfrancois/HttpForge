@@ -34,6 +34,8 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/login";
     options.AccessDeniedPath = "/login";
+    options.ExpireTimeSpan = TimeSpan.FromDays(30);
+    options.SlidingExpiration = true;
 });
 
 builder.Services.AddCascadingAuthenticationState();
@@ -192,11 +194,11 @@ app.MapGet("/auth/complete-sign-in", async (
     SignInManager<AppUser> signInManager,
     UserManager<AppUser> userManager) =>
 {
-    var userId = tokenService.Consume(token);
-    if (userId is null) return Results.Redirect("/login?error=external-failed");
-    var user = await userManager.FindByIdAsync(userId);
+    var entry = tokenService.Consume(token);
+    if (entry is null) return Results.Redirect("/login?error=external-failed");
+    var user = await userManager.FindByIdAsync(entry.Value.UserId);
     if (user is null) return Results.Redirect("/login?error=external-failed");
-    await signInManager.SignInAsync(user, isPersistent: false);
+    await signInManager.SignInAsync(user, isPersistent: entry.Value.IsPersistent);
     return Results.Redirect(SafeReturn(returnUrl));
 }).AllowAnonymous();
 
