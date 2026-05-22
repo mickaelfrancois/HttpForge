@@ -1,13 +1,11 @@
 using HttpForge.Data;
 using HttpForge.Data.Entities;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace HttpForge.Services;
 
 public class TeamService(
     IDbContextFactory<AppDbContext> dbFactory,
-    UserManager<AppUser> userManager,
     InvitationService invitationService)
 {
     public async Task<Team> CreateTeamAsync(string name, CancellationToken ct = default)
