@@ -76,3 +76,25 @@ h1:focus {
 
 .json-viewer-wrap .CodeMirror .cm-atom,
 .json-body-editor-wrap .CodeMirror .cm-atom { color: var(--json-atom); }
+/* Auth pages */
+.auth-page {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: var(--bg);
+}
+.auth-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 2rem; width: 360px;
+    display: flex; flex-direction: column; gap: 1rem;
+}
+.auth-card h2 { text-align: center; margin: 0; }
+.auth-error { color: var(--danger); font-size: 0.85rem; }
+.auth-sso { display: flex; flex-direction: column; gap: 0.5rem; }
+.btn-sso {
+    display: block; text-align: center; padding: 0.5rem;
+    border: 1px solid var(--border); border-radius: 4px; text-decoration: none;
+    color: var(--text);
+}
+.auth-divider { text-align: center; color: var(--text-muted); font-size: 0.8rem; }
+.auth-form { display: flex; flex-direction: column; gap: 0.5rem; }
+.auth-form input { padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); }
+.auth-form button { padding: 0.5rem; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; }

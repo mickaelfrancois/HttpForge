@@ -1,0 +1,94 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@inject NavigationManager Navigation
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<PageTitle>Login — HttpForge</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <h2>HttpForge</h2>
+
+        @if (_errorMessage is not null)
+        {
+            <div class="auth-error">@_errorMessage</div>
+        }
+
+        @* SSO buttons — only shown when providers are configured *@
+        @if (_providers.Count > 0)
+        {
+            <div class="auth-sso">
+                @foreach (var p in _providers)
+                {
+                    <a class="btn-sso" href="/auth/external-login?provider=@p&returnUrl=@_returnUrl">
+                        Login with @p
+                    </a>
+                }
+            </div>
+            <div class="auth-divider">or</div>
+        }
+
+        @* Password login *@
+        <div class="auth-form">
+            <input type="email" placeholder="Email" @bind="_email" @bind:event="oninput" />
+            <input type="password" placeholder="Password" @bind="_password" @bind:event="oninput"
+                   @onkeydown="OnKeyDown" />
+            <button @onclick="LoginAsync" disabled="@_busy">
+                @(_busy ? "Signing in…" : "Sign in")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string? _errorMessage;
+    private bool _busy;
+    private string _returnUrl = "/";
+    private List<string> _providers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _returnUrl = ReturnUrl ?? "/";
+        _errorMessage = Error switch
+        {
+            "external-failed" => "External login failed. Please try again.",
+            "no-email" => "The external provider did not return an email address.",
+            "no-invitation" => "No pending invitation found for this email address.",
+            "create-failed" => "Account creation failed. Please contact an administrator.",
+            _ => null
+        };
+
+        var schemes = await SignInManager.GetExternalAuthenticationSchemesAsync();
+        _providers = schemes.Select(s => s.Name).ToList();
+    }
+
+    private async Task LoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password)) return;
+        _busy = true;
+        _errorMessage = null;
+
+        var result = await SignInManager.PasswordSignInAsync(_email.Trim(), _password, false, false);
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo(_returnUrl, forceLoad: true);
+            return;
+        }
+
+        _errorMessage = "Invalid email or password.";
+        _busy = false;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoginAsync();
+    }
+}

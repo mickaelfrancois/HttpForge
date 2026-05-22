@@ -1,0 +1,138 @@
+@page "/invite/{Token}"
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@inject InvitationService InvitationService
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Join — HttpForge</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        @if (_loading)
+        {
+            <p>Validating invitation…</p>
+        }
+        else if (_invitation is null)
+        {
+            <h2>Invalid invitation</h2>
+            <p>This invitation link is expired, already used, or does not exist.</p>
+            <a href="/login">Back to login</a>
+        }
+        else if (_done)
+        {
+            <h2>Account created</h2>
+            <p>You are now signed in. <a href="/">Go to HttpForge</a></p>
+        }
+        else
+        {
+            <h2>You've been invited</h2>
+            <p>Join as <strong>@_invitation.Role</strong> — <em>@_invitation.Email</em></p>
+
+            @if (_errorMessage is not null)
+            {
+                <div class="auth-error">@_errorMessage</div>
+            }
+
+            @if (_providers.Count > 0)
+            {
+                <div class="auth-sso">
+                    @foreach (var p in _providers)
+                    {
+                        <a class="btn-sso"
+                           href="/auth/external-login?provider=@p&returnUrl=/">
+                            Continue with @p
+                        </a>
+                    }
+                </div>
+                <div class="auth-divider">or set a password</div>
+            }
+
+            <div class="auth-form">
+                <input type="password" placeholder="Password (min 8 characters)"
+                       @bind="_password" @bind:event="oninput" />
+                <input type="password" placeholder="Confirm password"
+                       @bind="_confirm" @bind:event="oninput"
+                       @onkeydown="OnKeyDown" />
+                <button @onclick="RegisterAsync" disabled="@_busy">
+                    @(_busy ? "Creating account…" : "Create account")
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private InvitationToken? _invitation;
+    private bool _loading = true;
+    private bool _done;
+    private bool _busy;
+    private string _password = string.Empty;
+    private string _confirm = string.Empty;
+    private string? _errorMessage;
+    private List<string> _providers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _invitation = await InvitationService.ValidateAsync(Token);
+        _loading = false;
+
+        if (_invitation is not null)
+        {
+            var schemes = await SignInManager.GetExternalAuthenticationSchemesAsync();
+            _providers = schemes.Select(s => s.Name).ToList();
+        }
+    }
+
+    private async Task RegisterAsync()
+    {
+        if (_invitation is null) return;
+        if (_password.Length < 8) { _errorMessage = "Password must be at least 8 characters."; return; }
+        if (_password != _confirm) { _errorMessage = "Passwords do not match."; return; }
+
+        _busy = true;
+        _errorMessage = null;
+
+        var user = new AppUser
+        {
+            UserName = _invitation.Email,
+            Email = _invitation.Email,
+            EmailConfirmed = true
+        };
+
+        var result = await UserManager.CreateAsync(user, _password);
+        if (!result.Succeeded)
+        {
+            _errorMessage = string.Join(" ", result.Errors.Select(e => e.Description));
+            _busy = false;
+            return;
+        }
+
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        if (_invitation.Role == "SuperAdmin")
+            await UserManager.AddToRoleAsync(user, "SuperAdmin");
+        else if (_invitation.TeamId.HasValue)
+            db.TeamMembers.Add(new TeamMember
+            {
+                TeamId = _invitation.TeamId.Value,
+                UserId = user.Id,
+                Role = Enum.Parse<TeamRole>(_invitation.Role)
+            });
+
+        await InvitationService.MarkUsedAsync(_invitation.Id);
+        await db.SaveChangesAsync();
+
+        await SignInManager.SignInAsync(user, isPersistent: false);
+        _done = true;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await RegisterAsync();
+    }
+}
