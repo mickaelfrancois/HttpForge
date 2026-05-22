@@ -8,7 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-var dbPath = Path.Combine(builder.Environment.ContentRootPath, "httpforge.db");
+var dataDir = Environment.GetEnvironmentVariable("HTTPFORGE_DATA")
+    ?? builder.Environment.ContentRootPath;
+Directory.CreateDirectory(dataDir);
+var dbPath = Path.Combine(dataDir, "httpforge.db");
 builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
 
 builder.Services.AddHttpClient("forge")
