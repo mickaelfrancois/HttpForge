@@ -1,8 +1,4 @@
 .theme-toggle-btn {
-    position: fixed;
-    top: 0.6rem;
-    right: 0.75rem;
-    z-index: 500;
     background: var(--bg-btn-hover);
     color: var(--text-muted);
     border: 1px solid var(--border-main);
@@ -12,6 +8,7 @@
     font-size: 0.85rem;
     line-height: 1.4;
     transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
 }
 
 .theme-toggle-btn:hover {

@@ -1,21 +1,21 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 
-<ThemeToggle />
 <div class="forge-shell">
     <aside class="forge-sidebar">
         <NavMenu />
     </aside>
     <div class="forge-resize-handle"></div>
     <main class="forge-main">
-        <AuthorizeView>
-            <Authorized>
-                <div class="user-header">
+        <div class="user-header">
+            <AuthorizeView>
+                <Authorized>
                     <span class="user-email">@context.User.Identity?.Name</span>
                     <a class="btn-logout" href="/auth/logout">Logout</a>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+                </Authorized>
+            </AuthorizeView>
+            <ThemeToggle />
+        </div>
         @Body
     </main>
 </div>
