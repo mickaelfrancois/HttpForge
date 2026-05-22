@@ -40,18 +40,18 @@ builder.Services.AddCascadingAuthenticationState();
 // External OAuth providers — only registered when env vars are present
 var googleId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
 var googleSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
-if (!string.IsNullOrEmpty(googleId) && !string.IsNullOrEmpty(googleSecret))
-    builder.Services.AddAuthentication().AddGoogle(o => { o.ClientId = googleId; o.ClientSecret = googleSecret; });
-
 var msId = Environment.GetEnvironmentVariable("MICROSOFT_CLIENT_ID");
 var msSecret = Environment.GetEnvironmentVariable("MICROSOFT_CLIENT_SECRET");
-if (!string.IsNullOrEmpty(msId) && !string.IsNullOrEmpty(msSecret))
-    builder.Services.AddAuthentication().AddMicrosoftAccount(o => { o.ClientId = msId; o.ClientSecret = msSecret; });
-
 var ghId = Environment.GetEnvironmentVariable("GITHUB_CLIENT_ID");
 var ghSecret = Environment.GetEnvironmentVariable("GITHUB_CLIENT_SECRET");
+
+var authBuilder = builder.Services.AddAuthentication();
+if (!string.IsNullOrEmpty(googleId) && !string.IsNullOrEmpty(googleSecret))
+    authBuilder.AddGoogle(o => { o.ClientId = googleId!; o.ClientSecret = googleSecret!; });
+if (!string.IsNullOrEmpty(msId) && !string.IsNullOrEmpty(msSecret))
+    authBuilder.AddMicrosoftAccount(o => { o.ClientId = msId!; o.ClientSecret = msSecret!; });
 if (!string.IsNullOrEmpty(ghId) && !string.IsNullOrEmpty(ghSecret))
-    builder.Services.AddAuthentication().AddGitHub(o => { o.ClientId = ghId; o.ClientSecret = ghSecret; });
+    authBuilder.AddGitHub(o => { o.ClientId = ghId!; o.ClientSecret = ghSecret!; });
 
 builder.Services.AddHttpClient("forge")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -92,6 +92,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+static string SafeReturn(string? url) =>
+    !string.IsNullOrEmpty(url) && url.StartsWith('/') && !url.StartsWith("//")
+        ? url : "/";
+
 // Challenge endpoint — redirects browser to OAuth provider
 app.MapGet("/auth/external-login", (
     string provider,
@@ -114,13 +118,14 @@ app.MapGet("/auth/external-callback", async (
     if (info is null) return Results.Redirect("/login?error=external-failed");
 
     var email = info.Principal.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+    email = email.Trim().ToLower();
     if (string.IsNullOrEmpty(email)) return Results.Redirect("/login?error=no-email");
 
     // Existing login
     var signInResult = await signInManager.ExternalLoginSignInAsync(
         info.LoginProvider, info.ProviderKey, isPersistent: false);
     if (signInResult.Succeeded)
-        return Results.Redirect(returnUrl ?? "/");
+        return Results.Redirect(SafeReturn(returnUrl));
 
     // New user — requires pending invitation
     using var db = await dbFactory.CreateDbContextAsync();
@@ -146,18 +151,18 @@ app.MapGet("/auth/external-callback", async (
         {
             TeamId = invitation.TeamId.Value,
             UserId = user.Id,
-            Role = Enum.Parse<TeamRole>(invitation.Role)
+            Role = Enum.TryParse<TeamRole>(invitation.Role, out var parsedRole) ? parsedRole : TeamRole.Guest
         });
 
     invitation.UsedAt = DateTime.UtcNow;
     await db.SaveChangesAsync();
 
     await signInManager.SignInAsync(user, isPersistent: false);
-    return Results.Redirect(returnUrl ?? "/");
+    return Results.Redirect(SafeReturn(returnUrl));
 }).AllowAnonymous();
 
 // Logout
-app.MapGet("/auth/logout", async (SignInManager<AppUser> signInManager) =>
+app.MapPost("/auth/logout", async (SignInManager<AppUser> signInManager) =>
 {
     await signInManager.SignOutAsync();
     return Results.Redirect("/login");
