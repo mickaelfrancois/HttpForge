@@ -25,5 +25,10 @@
 .DS_Store
 Thumbs.db
 
+## Secrets — local overrides with credentials must never be committed
+appsettings.Development.json
+appsettings.*.json
+!appsettings.json
+
 ## Claude
 .claude/

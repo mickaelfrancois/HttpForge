@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @inject AuthenticationStateProvider AuthProvider
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
 
 <AuthorizeView>
     <Authorized>
@@ -16,7 +17,7 @@
             <a class="user-nav-link" href="/teams/@t.Id">@t.Name</a>
         }
 
-        <a class="btn-logout" href="/auth/logout">Logout</a>
+        <button class="btn-logout" @onclick="@(() => Navigation.NavigateTo("/auth/logout", forceLoad: true))">Logout</button>
     </Authorized>
 </AuthorizeView>
 

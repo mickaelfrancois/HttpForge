@@ -81,24 +81,39 @@
 
     private async Task LoginAsync()
     {
-        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password)) return;
-        _busy = true;
-        _errorMessage = null;
-
-        // PasswordSignInAsync cannot set cookies inside a Blazor circuit.
-        // Validate credentials manually, then redirect to the server-side endpoint.
-        var user = await UserManager.FindByEmailAsync(_email.Trim());
-        if (user is not null && await UserManager.CheckPasswordAsync(user, _password))
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
         {
-            var token = PostRegTokens.CreateToken(user.Id, _rememberMe);
-            Navigation.NavigateTo(
-                $"/auth/complete-sign-in?token={Uri.EscapeDataString(token)}&returnUrl={Uri.EscapeDataString(_returnUrl)}",
-                forceLoad: true);
+            _errorMessage = "Please enter your email and password.";
             return;
         }
 
-        _errorMessage = "Invalid email or password.";
-        _busy = false;
+        _busy = true;
+        _errorMessage = null;
+
+        try
+        {
+            // PasswordSignInAsync cannot set cookies inside a Blazor circuit.
+            // Validate credentials manually, then redirect to the server-side endpoint.
+            var user = await UserManager.FindByEmailAsync(_email.Trim());
+            if (user is not null && await UserManager.CheckPasswordAsync(user, _password))
+            {
+                var token = PostRegTokens.CreateToken(user.Id, _rememberMe);
+                Navigation.NavigateTo(
+                    $"/auth/complete-sign-in?token={Uri.EscapeDataString(token)}&returnUrl={Uri.EscapeDataString(_returnUrl)}",
+                    forceLoad: true);
+                return;
+            }
+
+            _errorMessage = "Invalid email or password.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Login error: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
