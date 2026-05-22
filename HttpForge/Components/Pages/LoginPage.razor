@@ -23,7 +23,7 @@
             <div class="auth-sso">
                 @foreach (var p in _providers)
                 {
-                    <a class="btn-sso" href="/auth/external-login?provider=@p&returnUrl=@_returnUrl">
+                    <a class="btn-sso" href="/auth/external-login?provider=@p&returnUrl=@Uri.EscapeDataString(_returnUrl)">
                         Login with @p
                     </a>
                 }
@@ -56,7 +56,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _returnUrl = ReturnUrl ?? "/";
+        _returnUrl = Uri.IsWellFormedUriString(ReturnUrl, UriKind.Relative) && (ReturnUrl?.StartsWith('/') == true)
+            ? ReturnUrl
+            : "/";
         _errorMessage = Error switch
         {
             "external-failed" => "External login failed. Please try again.",

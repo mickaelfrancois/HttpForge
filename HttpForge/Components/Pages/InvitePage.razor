@@ -97,38 +97,56 @@
         _busy = true;
         _errorMessage = null;
 
-        var user = new AppUser
+        try
         {
-            UserName = _invitation.Email,
-            Email = _invitation.Email,
-            EmailConfirmed = true
-        };
-
-        var result = await UserManager.CreateAsync(user, _password);
-        if (!result.Succeeded)
-        {
-            _errorMessage = string.Join(" ", result.Errors.Select(e => e.Description));
-            _busy = false;
-            return;
-        }
-
-        using var db = await DbFactory.CreateDbContextAsync();
-
-        if (_invitation.Role == "SuperAdmin")
-            await UserManager.AddToRoleAsync(user, "SuperAdmin");
-        else if (_invitation.TeamId.HasValue)
-            db.TeamMembers.Add(new TeamMember
+            var user = new AppUser
             {
-                TeamId = _invitation.TeamId.Value,
-                UserId = user.Id,
-                Role = Enum.Parse<TeamRole>(_invitation.Role)
-            });
+                UserName = _invitation.Email,
+                Email = _invitation.Email,
+                EmailConfirmed = true
+            };
 
-        await InvitationService.MarkUsedAsync(_invitation.Id);
-        await db.SaveChangesAsync();
+            var result = await UserManager.CreateAsync(user, _password);
+            if (!result.Succeeded)
+            {
+                _errorMessage = string.Join(" ", result.Errors.Select(e => e.Description));
+                _busy = false;
+                return;
+            }
 
-        await SignInManager.SignInAsync(user, isPersistent: false);
-        _done = true;
+            using var db = await DbFactory.CreateDbContextAsync();
+
+            if (_invitation.Role == "SuperAdmin")
+            {
+                await UserManager.AddToRoleAsync(user, "SuperAdmin");
+            }
+            else if (_invitation.TeamId.HasValue)
+            {
+                if (!Enum.TryParse<TeamRole>(_invitation.Role, out var teamRole))
+                {
+                    _errorMessage = "Invalid role on invitation. Please contact an administrator.";
+                    _busy = false;
+                    return;
+                }
+                db.TeamMembers.Add(new TeamMember
+                {
+                    TeamId = _invitation.TeamId.Value,
+                    UserId = user.Id,
+                    Role = teamRole
+                });
+            }
+
+            await db.SaveChangesAsync();
+            await InvitationService.MarkUsedAsync(_invitation.Id);
+
+            await SignInManager.SignInAsync(user, isPersistent: false);
+            _done = true;
+        }
+        catch
+        {
+            _errorMessage = "An unexpected error occurred. Please try again.";
+            _busy = false;
+        }
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
