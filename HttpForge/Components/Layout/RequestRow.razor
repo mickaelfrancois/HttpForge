@@ -3,6 +3,7 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <div class="request-row @(State.SelectedRequestId == Request.Id ? "selected" : "")"
      draggable="true"
@@ -83,6 +84,9 @@
     {
         State.SelectedRequestId = Request.Id;
         State.NotifyChanged();
+        var uri = new Uri(Navigation.Uri);
+        if (uri.AbsolutePath != "/")
+            Navigation.NavigateTo("/");
     }
 
     private void StartRename()
