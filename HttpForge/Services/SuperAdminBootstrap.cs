@@ -2,6 +2,7 @@ using HttpForge.Data;
 using HttpForge.Data.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 
 namespace HttpForge.Services;
@@ -45,5 +46,21 @@ public static class SuperAdminBootstrap
         Console.WriteLine($"Email : {normalizedEmail}");
         Console.WriteLine($"Link  : /invite/{token}");
         Console.WriteLine("=======================================");
+
+        var smtpSettings = services.GetRequiredService<IOptions<SmtpSettings>>().Value;
+        if (smtpSettings.IsConfigured)
+        {
+            var appUrl = smtpSettings.AppUrl?.TrimEnd('/') ?? "http://localhost:5078";
+            var emailSender = services.GetRequiredService<EmailSender>();
+            try
+            {
+                await emailSender.SendInvitationAsync(normalizedEmail, $"{appUrl}/invite/{token}", "SuperAdmin");
+                Console.WriteLine("Invitation email sent.");
+            }
+            catch
+            {
+                Console.WriteLine("Warning: failed to send invitation email (check SMTP config).");
+            }
+        }
     }
 }

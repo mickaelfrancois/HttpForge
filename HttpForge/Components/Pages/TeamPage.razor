@@ -6,6 +6,7 @@
 @inject AuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject EmailSender EmailSender
 
 <PageTitle>Team — HttpForge</PageTitle>
 
@@ -205,11 +206,19 @@ else
 
         try
         {
-            var (directlyAdded, invitation) = await TeamService.AddOrInviteMemberAsync(TeamId, _inviteEmail, role);
+            var email = _inviteEmail.Trim();
+            var (directlyAdded, invitation) = await TeamService.AddOrInviteMemberAsync(TeamId, email, role);
             _directlyAdded = directlyAdded;
             _inviteToken = invitation?.Token;
             _copied = false;
             _inviteEmail = string.Empty;
+
+            if (invitation is not null && EmailSender.IsConfigured)
+            {
+                var inviteUrl = $"{_inviteBaseUrl}/invite/{invitation.Token}";
+                await EmailSender.SendInvitationAsync(email, inviteUrl, invitation.Role);
+            }
+
             await ReloadAsync();
         }
         catch (InvalidOperationException ex)

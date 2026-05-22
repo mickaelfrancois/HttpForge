@@ -70,6 +70,8 @@ builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddSingleton<PostRegistrationTokenService>();
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.AddScoped<EmailSender>();
 
 var app = builder.Build();
 
