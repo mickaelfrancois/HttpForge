@@ -6,6 +6,7 @@
 @inject UserManager<AppUser> UserManager
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject NavigationManager Navigation
+@inject PostRegistrationTokenService PostRegTokens
 @inject ILogger<InvitePage> Logger
 
 <PageTitle>Join — HttpForge</PageTitle>
@@ -21,11 +22,6 @@
             <h2>Invalid invitation</h2>
             <p>This invitation link is expired, already used, or does not exist.</p>
             <a href="/login">Back to login</a>
-        }
-        else if (_done)
-        {
-            <h2>Account created</h2>
-            <p>You are now signed in. <a href="/">Go to HttpForge</a></p>
         }
         else
         {
@@ -70,7 +66,6 @@
 
     private InvitationToken? _invitation;
     private bool _loading = true;
-    private bool _done;
     private bool _busy;
     private string _password = string.Empty;
     private string _confirm = string.Empty;
@@ -151,8 +146,9 @@
             await InvitationService.MarkUsedAsync(_invitation.Id);
 
             // SignInAsync cannot set cookies inside a Blazor circuit — redirect to
-            // the server-side sign-in endpoint which does a real HTTP sign-in.
-            Navigation.NavigateTo($"/auth/sign-in-after-invite?userId={Uri.EscapeDataString(user.Id)}", forceLoad: true);
+            // a server-side endpoint with a short-lived one-time token (5 min).
+            var signInToken = PostRegTokens.CreateToken(user.Id);
+            Navigation.NavigateTo($"/auth/sign-in-after-invite?token={Uri.EscapeDataString(signInToken)}", forceLoad: true);
         }
         catch (Exception ex)
         {

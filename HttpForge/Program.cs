@@ -68,6 +68,7 @@ builder.Services.AddScoped<ScriptRunner>();
 builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<TeamService>();
+builder.Services.AddSingleton<PostRegistrationTokenService>();
 
 var app = builder.Build();
 
@@ -174,12 +175,16 @@ app.MapGet("/auth/external-callback", async (
 }).AllowAnonymous();
 
 // Post-invite sign-in — called by InvitePage after successful registration.
-// InvitePage runs inside a Blazor circuit and cannot set cookies directly.
+// InvitePage runs inside a Blazor circuit and cannot set cookies directly,
+// so it redirects here with a short-lived one-time token (5 min, consumed on use).
 app.MapGet("/auth/sign-in-after-invite", async (
-    string userId,
+    string token,
+    PostRegistrationTokenService tokenService,
     SignInManager<AppUser> signInManager,
     UserManager<AppUser> userManager) =>
 {
+    var userId = tokenService.Consume(token);
+    if (userId is null) return Results.Redirect("/login?error=create-failed");
     var user = await userManager.FindByIdAsync(userId);
     if (user is null) return Results.Redirect("/login?error=create-failed");
     await signInManager.SignInAsync(user, isPersistent: false);
