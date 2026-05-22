@@ -37,7 +37,7 @@
 
         using var db = await DbFactory.CreateDbContextAsync();
         _teams = await db.TeamMembers
-            .Where(m => m.UserId == userId)
+            .Where(m => m.UserId == userId && m.Role == TeamRole.TeamAdmin)
             .Select(m => new { m.TeamId, m.Team!.Name })
             .AsNoTracking()
             .ToListAsync()
