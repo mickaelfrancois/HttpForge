@@ -176,6 +176,10 @@ h1:focus {
     padding: 0.4rem 0.6rem; border: 1px solid var(--border-input); border-radius: 4px;
     background: var(--bg-input); color: var(--text-primary); font-size: 0.9rem;
 }
+.add-success {
+    padding: 0.4rem 0.75rem; background: var(--status-2xx-bg);
+    color: var(--status-2xx-text); border-radius: 4px; font-size: 0.85rem;
+}
 .invite-result {
     display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
     margin-top: 0.5rem; padding: 0.5rem 0.75rem;

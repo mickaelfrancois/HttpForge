@@ -57,10 +57,18 @@ else
                     </button>
                 </div>
 
+                @if (_addError is not null)
+                {
+                    <div class="auth-error">@_addError</div>
+                }
+                @if (_directlyAdded)
+                {
+                    <div class="add-success">Member added directly — they can log in now.</div>
+                }
                 @if (_inviteToken is not null)
                 {
                     <div class="invite-result">
-                        <span class="invite-result-label">Invitation link:</span>
+                        <span class="invite-result-label">No account found — invitation link:</span>
                         <code class="invite-result-link">@_inviteBaseUrl/invite/@_inviteToken</code>
                         <button class="btn-copy" @onclick="CopyInviteLink" title="Copy link">
                             @(_copied ? "✓ Copied" : "Copy")
@@ -134,6 +142,8 @@ else
     private string _inviteEmail = string.Empty;
     private string _inviteRole = "Contributor";
     private string? _inviteToken;
+    private bool _directlyAdded;
+    private string? _addError;
     private bool _copied;
     private string _inviteBaseUrl = string.Empty;
 
@@ -188,11 +198,24 @@ else
     {
         if (string.IsNullOrWhiteSpace(_inviteEmail)) return;
         if (!Enum.TryParse<TeamRole>(_inviteRole, out var role)) return;
-        var inv = await TeamService.InviteMemberAsync(TeamId, _inviteEmail, role);
-        _inviteToken = inv.Token;
-        _copied = false;
-        _inviteEmail = string.Empty;
-        await ReloadAsync();
+
+        _addError = null;
+        _inviteToken = null;
+        _directlyAdded = false;
+
+        try
+        {
+            var (directlyAdded, invitation) = await TeamService.AddOrInviteMemberAsync(TeamId, _inviteEmail, role);
+            _directlyAdded = directlyAdded;
+            _inviteToken = invitation?.Token;
+            _copied = false;
+            _inviteEmail = string.Empty;
+            await ReloadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _addError = ex.Message;
+        }
     }
 
     private async Task CopyInviteLink()

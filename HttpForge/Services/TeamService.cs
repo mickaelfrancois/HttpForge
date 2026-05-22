@@ -40,6 +40,33 @@ public class TeamService(
     public async Task<InvitationToken> InviteMemberAsync(int teamId, string email, TeamRole role, CancellationToken ct = default)
         => await invitationService.CreateAsync(teamId, email, role.ToString(), ct);
 
+    // Returns (true, null) if added directly, (false, token) if invitation created, throws if already a member.
+    public async Task<(bool DirectlyAdded, InvitationToken? Invitation)> AddOrInviteMemberAsync(
+        int teamId, string email, TeamRole role, CancellationToken ct = default)
+    {
+        var normalizedEmail = email.Trim().ToLower();
+        using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var user = await db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail.ToUpper(), ct);
+
+        if (user is not null)
+        {
+            var alreadyMember = await db.TeamMembers
+                .AnyAsync(m => m.TeamId == teamId && m.UserId == user.Id, ct);
+            if (alreadyMember)
+                throw new InvalidOperationException("This user is already a member of the team.");
+
+            db.TeamMembers.Add(new TeamMember { TeamId = teamId, UserId = user.Id, Role = role });
+            await db.SaveChangesAsync(ct);
+            return (true, null);
+        }
+
+        var invitation = await invitationService.CreateAsync(teamId, normalizedEmail, role.ToString(), ct);
+        return (false, invitation);
+    }
+
     public async Task RemoveMemberAsync(int teamId, string userId, CancellationToken ct = default)
     {
         using var db = await dbFactory.CreateDbContextAsync(ct);
