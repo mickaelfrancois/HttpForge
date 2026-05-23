@@ -10,3 +10,10 @@ public class UserVariableValue
     public string Value { get; set; } = string.Empty;
     public bool IsSecret { get; set; }
 }
+
+public static class UserVariableScope
+{
+    public const string GlobalEnv = "global_env";
+    public const string CollectionVarSet = "collection_varset";
+    public const string Request = "request";
+}
