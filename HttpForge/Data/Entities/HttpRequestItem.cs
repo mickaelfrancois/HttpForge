@@ -26,4 +26,5 @@ public class HttpRequestItem
     public List<RequestVariable> Variables { get; set; } = new();
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public string? UpdatedByUserId { get; set; }
 }
