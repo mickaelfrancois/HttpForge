@@ -70,6 +70,8 @@ builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddSingleton<PostRegistrationTokenService>();
+builder.Services.AddSingleton<RequestChangeNotifier>();
+builder.Services.AddScoped<RequestSaveService>(); // will be created in Task 6
 
 var app = builder.Build();
 
