@@ -22,7 +22,8 @@ public class AppState
         AppEnvironment? globalSubset,
         CollectionVariableSet? collectionBase,
         CollectionVariableSet? collectionSubset,
-        HttpRequestItem? request)
+        HttpRequestItem? request,
+        IReadOnlyList<UserVariableValue>? userValues = null)
     {
         var merged = new Dictionary<string, ResolvedVariableEntry>(StringComparer.OrdinalIgnoreCase);
 
@@ -45,6 +46,11 @@ public class AppState
         if (request is not null)
             foreach (var v in request.Variables)
                 merged[v.Key] = new ResolvedVariableEntry(v.Key, v.Value, v.IsSecret, VariableSource.Request);
+
+        if (userValues is not null)
+            foreach (var uv in userValues)
+                if (merged.TryGetValue(uv.VariableKey, out var existing))
+                    merged[uv.VariableKey] = existing with { Value = uv.Value };
 
         return merged.Values.OrderBy(v => v.Key).ToList();
     }
