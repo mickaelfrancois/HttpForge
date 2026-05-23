@@ -31,6 +31,15 @@ public class RequestDraftTests
     }
 
     [Fact]
+    public void ClearDirty_ResetsIsDirty()
+    {
+        var draft = MakeDraft();
+        draft.MarkDirty();
+        draft.ClearDirty();
+        Assert.False(draft.IsDirty);
+    }
+
+    [Fact]
     public void FromRequest_CopiesAllFields()
     {
         var request = new HttpRequestItem
@@ -45,7 +54,7 @@ public class RequestDraftTests
             Headers = [new HeaderItem { Key = "Authorization", Value = "Bearer token" }],
             QueryParams = [],
             FormFields = [],
-            Variables = []
+            Variables = [new RequestVariable { Key = "BASE_URL", Value = "https://api.test" }]
         };
 
         var loadedAt = DateTime.UtcNow;
@@ -60,6 +69,8 @@ public class RequestDraftTests
         Assert.Equal("{\"a\":1}", draft.BodyContent);
         Assert.Equal("fg.variables.set('x', '1');", draft.PostScript);
         Assert.Single(draft.Headers);
+        Assert.Single(draft.Variables);
+        Assert.NotSame(request.Headers, draft.Headers);
         Assert.False(draft.IsDirty);
     }
 }
