@@ -1,0 +1,120 @@
+using HttpForge.Data;
+using HttpForge.Data.Entities;
+using HttpForge.Models;
+using HttpForge.Services;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HttpForge.Tests.Integration;
+
+public class RequestSaveServiceTests : IAsyncLifetime
+{
+    private IDbContextFactory<AppDbContext> _factory = null!;
+    private RequestChangeNotifier _notifier = null!;
+    private UserManager<AppUser> _userManager = null!;
+    private int _requestId;
+
+    public async Task InitializeAsync()
+    {
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<AppDbContext>(o =>
+            o.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddLogging();
+        services.AddIdentityCore<AppUser>()
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<AppDbContext>();
+
+        var provider = services.BuildServiceProvider();
+        _factory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        _notifier = new RequestChangeNotifier();
+        _userManager = provider.GetRequiredService<UserManager<AppUser>>();
+
+        // Seed a request
+        await using var db = await _factory.CreateDbContextAsync();
+        await db.Database.EnsureCreatedAsync();
+        var request = new HttpRequestItem
+        {
+            Name = "Test Request",
+            Method = HttpMethodKind.GET,
+            Url = "https://example.com",
+            UpdatedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)
+        };
+        db.Requests.Add(request);
+        await db.SaveChangesAsync();
+        _requestId = request.Id;
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private RequestDraft MakeDraft(DateTime loadedAt) => new()
+    {
+        RequestId = _requestId,
+        LoadedAt = loadedAt,
+        Name = "Updated Name",
+        Method = HttpMethodKind.POST,
+        Url = "https://updated.com",
+        BodyKind = BodyKind.None
+    };
+
+    [Fact]
+    public async Task SaveAsync_NoConflict_UpdatesDb()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        // LoadedAt after UpdatedAt → no conflict
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 13, 0, 0, DateTimeKind.Utc));
+        var result = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+
+        Assert.False(result.IsConflict);
+
+        await using var db = await _factory.CreateDbContextAsync();
+        var saved = await db.Requests.FirstAsync(r => r.Id == _requestId);
+        Assert.Equal("Updated Name", saved.Name);
+        Assert.Equal(HttpMethodKind.POST, saved.Method);
+        Assert.Equal("user-1", saved.UpdatedByUserId);
+        Assert.True(saved.UpdatedAt > new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public async Task SaveAsync_Conflict_DbNotModified()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        // LoadedAt before DB UpdatedAt → conflict
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 11, 0, 0, DateTimeKind.Utc));
+        var result = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+
+        Assert.True(result.IsConflict);
+
+        await using var db = await _factory.CreateDbContextAsync();
+        var unchanged = await db.Requests.FirstAsync(r => r.Id == _requestId);
+        Assert.Equal("Test Request", unchanged.Name);
+    }
+
+    [Fact]
+    public async Task SaveAsync_ForceOverwrite_SavesDespiteConflict()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 11, 0, 0, DateTimeKind.Utc)); // conflict scenario
+
+        var result = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: true);
+
+        Assert.False(result.IsConflict);
+
+        await using var db = await _factory.CreateDbContextAsync();
+        var saved = await db.Requests.FirstAsync(r => r.Id == _requestId);
+        Assert.Equal("Updated Name", saved.Name);
+    }
+
+    [Fact]
+    public async Task SaveAsync_NoConflict_FiresNotification()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        int notifiedId = 0;
+        _notifier.RequestSaved += (id, uid, name) => { notifiedId = id; return Task.CompletedTask; };
+
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 13, 0, 0, DateTimeKind.Utc));
+        await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+
+        Assert.Equal(_requestId, notifiedId);
+    }
+}
