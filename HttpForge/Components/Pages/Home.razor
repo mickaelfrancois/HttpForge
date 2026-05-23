@@ -716,6 +716,7 @@ else
     {
         if (_draft?.IsDirty == true)
             await SaveDraftAsync(forceOverwrite: false);
+        if (_showConflictModal) return;
         if (_request is null) return;
 
         _sending = true;
