@@ -59,13 +59,13 @@ else
                            Placeholder="https://api.example.com/path"
                            Title="@Tooltip(_draft.Url)"
                            EnvVariables="_resolvedVariables" />
+            <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
+                @(_sending ? "Sending…" : "Send")
+            </button>
             @if (!State.IsReadOnly && _draft.IsDirty)
             {
                 <button class="save-btn" @onclick="() => SaveDraftAsync(false)">Save</button>
             }
-            <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
-                @(_sending ? "Sending…" : "Send")
-            </button>
         </div>
 
         @{
