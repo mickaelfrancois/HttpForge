@@ -49,11 +49,12 @@ public class TabManagerService
     public event Action? OnChange;
     public event Func<TabState, Task>? OnCloseRequested; // dirty → modal
 
-    public Task OpenTabAsync(int requestId);  // no-op si déjà ouvert
-    public void ActivateTab(int requestId);
-    public void CloseTab(int requestId);      // vérifie IsDirty → event si besoin
-    public void CloseAllTabs();               // force, sans confirmation
-    public Task InitFromLocalStorageAsync();  // appelé au démarrage
+    public Task OpenTabAsync(int requestId);        // no-op si déjà ouvert
+    public void ActivateTab(int requestId);         // met aussi à jour AppState.SelectedRequestId
+    public void CloseTab(int requestId);            // vérifie IsDirty → event si besoin
+    public void CloseOtherTabs(int keepRequestId);  // force, sans confirmation
+    public void CloseAllTabs();                     // force, sans confirmation
+    public Task InitFromLocalStorageAsync();        // appelé par Home.razor OnAfterRenderAsync(firstRender)
 }
 ```
 
