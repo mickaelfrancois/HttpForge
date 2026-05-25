@@ -9,7 +9,8 @@ public static class SchemaUpgrader
         "Collections", "Environments", "EnvironmentVariables",
         "CollectionVariables", "RequestVariables", "AppSettings",
         "CollectionVariableSets", "CollectionVariableEntries", "Requests",
-        "CollectionFolders", "Teams", "TeamMembers", "InvitationTokens"
+        "CollectionFolders", "Teams", "TeamMembers", "InvitationTokens",
+        "UserVariableValues"
     ];
     public static void Apply(AppDbContext db)
     {
@@ -67,6 +68,7 @@ public static class SchemaUpgrader
             "FOREIGN KEY (\"CollectionId\") REFERENCES \"Collections\"(\"Id\") ON DELETE CASCADE);");
 
         EnsureColumn(db, "Requests", "FolderId", "INTEGER NULL");
+        EnsureColumn(db, "Requests", "UpdatedByUserId", "TEXT NULL");
 
         EnsureColumn(db, "Collections", "TeamId", "INTEGER NULL");
 
@@ -100,6 +102,17 @@ public static class SchemaUpgrader
         EnsureColumn(db, "InvitationTokens", "Token", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn(db, "InvitationTokens", "ExpiresAt", "TEXT NOT NULL DEFAULT (datetime('now'))");
         EnsureColumn(db, "InvitationTokens", "UsedAt", "TEXT NULL");
+
+        EnsureTable(db, "UserVariableValues",
+            "CREATE TABLE \"UserVariableValues\" (" +
+            "\"Id\" INTEGER PRIMARY KEY AUTOINCREMENT, " +
+            "\"UserId\" TEXT NOT NULL DEFAULT '', " +
+            "\"ScopeType\" TEXT NOT NULL DEFAULT '', " +
+            "\"ScopeId\" INTEGER NOT NULL DEFAULT 0, " +
+            "\"VariableKey\" TEXT NOT NULL DEFAULT '', " +
+            "\"Value\" TEXT NOT NULL DEFAULT '', " +
+            "\"IsSecret\" INTEGER NOT NULL DEFAULT 0, " +
+            "UNIQUE (\"UserId\", \"ScopeType\", \"ScopeId\", \"VariableKey\"));");
 
         EnsureGlobalBase(db);
         EnsureAppSettings(db);

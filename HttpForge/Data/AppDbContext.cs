@@ -24,6 +24,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
     public DbSet<InvitationToken> InvitationTokens => Set<InvitationToken>();
+    public DbSet<UserVariableValue> UserVariableValues => Set<UserVariableValue>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -96,5 +97,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<AppSettings>().ToTable("AppSettings");
+
+        b.Entity<UserVariableValue>()
+            .HasIndex(v => new { v.UserId, v.ScopeType, v.ScopeId, v.VariableKey })
+            .IsUnique();
     }
 }

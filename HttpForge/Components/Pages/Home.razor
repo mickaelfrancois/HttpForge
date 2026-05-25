@@ -8,11 +8,14 @@
 @inject IJSRuntime JS
 @inject PermissionService PermissionService
 @inject AuthenticationStateProvider AuthProvider
-@implements IDisposable
+@inject RequestSaveService SaveService
+@inject RequestChangeNotifier Notifier
+@using HttpForge.Models
+@implements IAsyncDisposable
 
 <PageTitle>HttpForge</PageTitle>
 
-@if (_request is null)
+@if (_draft is null)
 {
     <div class="empty-state">
         <h2>HttpForge</h2>
@@ -27,25 +30,42 @@ else
             Vous êtes en mode lecture — vos modifications ne seront pas enregistrées.
         </div>
     }
+
+    @if (_reloadToast is not null)
+    {
+        <div class="reload-toast">
+            @_reloadToast
+            <button @onclick="OnReloadFromServerAsync">Recharger</button>
+            <button @onclick="OnDismissToast">Ignorer</button>
+        </div>
+    }
+
     <div class="editor">
         <div class="request-name-row">
-            <input class="request-name-input" value="@_request.Name"
-                   @oninput="OnNameInput" @onblur="SaveRequestDebounced" placeholder="Request name" />
+            <input class="request-name-input" value="@_draft.Name"
+                   @oninput="OnNameInput" placeholder="Request name" />
+            @if (!State.IsReadOnly)
+            {
+                <button class="save-btn @(_draft.IsDirty ? "save-btn--dirty" : "")"
+                        disabled="@(!_draft.IsDirty)"
+                        @onclick="() => SaveDraftAsync(false)">
+                    @(_draft.IsDirty ? "● Save" : "Saved")
+                </button>
+            }
         </div>
         <div class="url-bar">
-            <select class="method-select method-@_request.Method.ToString().ToLower()"
+            <select class="method-select method-@_draft.Method.ToString().ToLower()"
                     @onchange="OnMethodChanged">
                 @foreach (var m in Enum.GetValues<HttpMethodKind>())
                 {
-                    <option value="@m" selected="@(_request.Method == m)">@m</option>
+                    <option value="@m" selected="@(_draft.Method == m)">@m</option>
                 }
             </select>
-            <VariableInput Value="@_request.Url"
+            <VariableInput Value="@_draft.Url"
                            ValueChanged="OnUrlChanged"
-                           OnBlur="SaveRequestDebounced"
                            CssClass="url-input"
                            Placeholder="https://api.example.com/path"
-                           Title="@Tooltip(_request.Url)"
+                           Title="@Tooltip(_draft.Url)"
                            EnvVariables="_resolvedVariables" />
             <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
                 @(_sending ? "Sending…" : "Send")
@@ -53,9 +73,9 @@ else
         </div>
 
         @{
-            var _hasParams = _request.QueryParams.Any(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key));
-            var _showPreview = !string.IsNullOrWhiteSpace(_request.Url) && (_request.Url.Contains("{{") || _hasParams);
-            var _previewUrl = _showPreview ? VariablePreview.BuildFullUrl(_request.Url, _request.QueryParams, _resolvedVariables) : string.Empty;
+            var _hasParams = _draft.QueryParams.Any(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key));
+            var _showPreview = !string.IsNullOrWhiteSpace(_draft.Url) && (_draft.Url.Contains("{{") || _hasParams);
+            var _previewUrl = _showPreview ? VariablePreview.BuildFullUrl(_draft.Url, _draft.QueryParams, _resolvedVariables) : string.Empty;
         }
         @if (_showPreview)
         {
@@ -84,8 +104,8 @@ else
             @switch (_activeTab)
             {
                 case "Params":
-                    <KeyValueGrid Items="_request.QueryParams"
-                                  ItemCreator="@(() => new QueryParamItem { HttpRequestItemId = _request.Id })"
+                    <KeyValueGrid Items="_draft.QueryParams"
+                                  ItemCreator="@(() => new QueryParamItem { HttpRequestItemId = _draft.RequestId })"
                                   KeyOf="@(i => ((QueryParamItem)i).Key)"
                                   ValueOf="@(i => ((QueryParamItem)i).Value)"
                                   EnabledOf="@(i => ((QueryParamItem)i).Enabled)"
@@ -97,8 +117,8 @@ else
                                   EnvVariables="_resolvedVariables" />
                     break;
                 case "Headers":
-                    <KeyValueGrid Items="_request.Headers"
-                                  ItemCreator="@(() => new HeaderItem { HttpRequestItemId = _request.Id })"
+                    <KeyValueGrid Items="_draft.Headers"
+                                  ItemCreator="@(() => new HeaderItem { HttpRequestItemId = _draft.RequestId })"
                                   KeyOf="@(i => ((HeaderItem)i).Key)"
                                   ValueOf="@(i => ((HeaderItem)i).Value)"
                                   EnabledOf="@(i => ((HeaderItem)i).Enabled)"
@@ -116,33 +136,31 @@ else
                             {
                                 <label class="radio">
                                     <input type="radio" name="bodykind"
-                                           checked="@(_request.BodyKind == bk)"
+                                           checked="@(_draft.BodyKind == bk)"
                                            @onchange="@(_ => OnBodyKindChanged(bk))" />
                                     @bk
                                 </label>
                             }
                         </div>
-                        @if (_request.BodyKind == BodyKind.Json)
+                        @if (_draft.BodyKind == BodyKind.Json)
                         {
-                            <JsonBodyEditor Value="@_request.BodyContent"
-                                            ValueChanged="OnBodyChanged"
-                                            OnBlur="SaveRequestDebounced" />
+                            <JsonBodyEditor Value="@_draft.BodyContent"
+                                            ValueChanged="OnBodyChanged" />
                         }
-                        else if (_request.BodyKind == BodyKind.Raw)
+                        else if (_draft.BodyKind == BodyKind.Raw)
                         {
-                            <VariableInput Value="@_request.BodyContent"
+                            <VariableInput Value="@_draft.BodyContent"
                                            ValueChanged="OnBodyChanged"
-                                           OnBlur="SaveRequestDebounced"
                                            Multiline="true"
                                            CssClass="body-textarea"
                                            Placeholder="raw body"
-                                           Title="@Tooltip(_request.BodyContent)"
+                                           Title="@Tooltip(_draft.BodyContent)"
                                            EnvVariables="_resolvedVariables" />
                         }
-                        else if (_request.BodyKind == BodyKind.FormUrlEncoded)
+                        else if (_draft.BodyKind == BodyKind.FormUrlEncoded)
                         {
-                            <KeyValueGrid Items="_request.FormFields"
-                                          ItemCreator="@(() => new FormFieldItem { HttpRequestItemId = _request.Id })"
+                            <KeyValueGrid Items="_draft.FormFields"
+                                          ItemCreator="@(() => new FormFieldItem { HttpRequestItemId = _draft.RequestId })"
                                           KeyOf="@(i => ((FormFieldItem)i).Key)"
                                           ValueOf="@(i => ((FormFieldItem)i).Value)"
                                           EnabledOf="@(i => ((FormFieldItem)i).Enabled)"
@@ -160,22 +178,22 @@ else
                     </div>
                     break;
                 case "Variables":
-                    <KeyValueGrid Items="_request.Variables"
-                                  ItemCreator="@(() => new RequestVariable { HttpRequestItemId = _request.Id })"
+                    <KeyValueGrid Items="_draft.Variables"
+                                  ItemCreator="@(() => new RequestVariable { HttpRequestItemId = _draft.RequestId })"
                                   KeyOf="@(i => ((RequestVariable)i).Key)"
-                                  ValueOf="@(i => ((RequestVariable)i).Value)"
+                                  ValueOf="@(i => _pendingPersonalValues.TryGetValue(((RequestVariable)i).Key, out var pv) ? pv : string.Empty)"
                                   EnabledOf="@(_ => true)"
-                                  SetKey="@((i, v) => ((RequestVariable)i).Key = v)"
-                                  SetValue="@((i, v) => ((RequestVariable)i).Value = v)"
+                                  SetKey="@((i, v) => { ((RequestVariable)i).Key = v; _draft.MarkDirty(); })"
+                                  SetValue="@((i, v) => _pendingPersonalValues[((RequestVariable)i).Key] = v)"
                                   SetEnabled="@((i, v) => { })"
-                                  OnChanged="SaveRequestVarAsync"
+                                  OnChanged="OnRequestVarChangedAsync"
                                   OnRemove="RemoveRequestVarAsync"
                                   EnvVariables="_resolvedVariables" />
                     break;
                 case "Scripts":
                     <div class="scripts-tab">
                         <div class="script-section-label">Post-request script</div>
-                        <ScriptEditor Value="@_request.PostScript"
+                        <ScriptEditor Value="@_draft.PostScript"
                                       ValueChanged="OnPostScriptChanged" />
                         <div class="script-hint">
                             Use <code>fg.response.json()</code>, <code>fg.variables.set("key", value)</code>.
@@ -262,10 +280,39 @@ else
             }
         </div>
     </div>
+
+    @if (_showConflictModal)
+    {
+        <div class="modal-backdrop">
+            <div class="modal">
+                <p><strong>Cette requête a été modifiée par @_conflictByUserName à @_conflictAt?.ToString("HH:mm:ss")</strong></p>
+                <p>Voulez-vous écraser leurs modifications ou annuler ?</p>
+                <button class="btn-danger" @onclick="OnSaveOverwriteAsync">Écraser leurs modifications</button>
+                <button @onclick="OnCancelSave">Annuler</button>
+            </div>
+        </div>
+    }
+
+    @if (_showUnsavedModal)
+    {
+        <div class="modal-backdrop">
+            <div class="modal">
+                <p><strong>Modifications non sauvegardées</strong></p>
+                <p>Vous avez des modifications non sauvegardées sur cette requête.</p>
+                <button @onclick="OnSaveAndNavigateAsync">Sauvegarder d'abord</button>
+                <button class="btn-danger" @onclick="OnDiscardAndNavigateAsync">Quitter sans sauvegarder</button>
+            </div>
+        </div>
+    }
 }
 
 @code {
+    // Last-saved request — used by SendAsync / ScriptRunner
     private HttpRequestItem? _request;
+
+    // In-memory editing state
+    private RequestDraft? _draft;
+
     private AppEnvironment? _globalBase;
     private AppEnvironment? _globalSubset;
     private CollectionVariableSet? _collectionBase;
@@ -278,19 +325,50 @@ else
     private string _responseTab = "Body";
     private readonly string[] _tabs = ["Params", "Headers", "Body", "Variables", "Scripts"];
 
+    private string? _currentUserId;
+    private string? _currentUserName;
+    private List<UserVariableValue> _userVarValues = [];
+    private Dictionary<string, string> _pendingPersonalValues = new(StringComparer.OrdinalIgnoreCase);
+
+    // Modal/toast state
+    private bool _showUnsavedModal;
+    private int? _pendingRequestId;
+    private bool _showConflictModal;
+    private string? _conflictByUserName;
+    private DateTime? _conflictAt;
+    private string? _reloadToast;
+
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _currentUserName = authState.User.FindFirstValue(ClaimTypes.Email) ?? "Unknown";
+
         State.OnChange += OnStateChanged;
+        Notifier.RequestSaved += OnRequestSavedByOther;
+
         await LoadEnvAsync();
         await LoadRequestAsync();
     }
 
-    public void Dispose() => State.OnChange -= OnStateChanged;
+    public async ValueTask DisposeAsync()
+    {
+        State.OnChange -= OnStateChanged;
+        Notifier.RequestSaved -= OnRequestSavedByOther;
+        await Task.CompletedTask;
+    }
 
     private async void OnStateChanged()
     {
         try
         {
+            if (_draft?.IsDirty == true && State.SelectedRequestId != _draft.RequestId)
+            {
+                _pendingRequestId = State.SelectedRequestId;
+                _showUnsavedModal = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
             await LoadEnvAsync();
             await LoadRequestAsync();
             await InvokeAsync(StateHasChanged);
@@ -304,7 +382,7 @@ else
 
     private async Task LoadEnvAsync()
     {
-        using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync();
         var envs = await db.Environments
             .Include(e => e.Variables)
             .ToListAsync();
@@ -321,9 +399,12 @@ else
         if (State.SelectedRequestId is null)
         {
             _request = null;
+            _draft = null;
             _collectionBase = null;
             _collectionSubset = null;
             _result = null;
+            _userVarValues = [];
+            _pendingPersonalValues = new(StringComparer.OrdinalIgnoreCase);
             State.SelectedCollectionId = null;
             State.IsReadOnly = false;
             RebuildVariables();
@@ -332,30 +413,30 @@ else
 
         _result = null;
 
-        using var db = await DbFactory.CreateDbContextAsync();
-        _request = await db.Requests
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var request = await db.Requests
             .Include(r => r.Headers)
             .Include(r => r.QueryParams)
             .Include(r => r.FormFields)
             .Include(r => r.Variables)
             .FirstOrDefaultAsync(r => r.Id == State.SelectedRequestId);
 
-        var collection = _request is null ? null : await db.Collections
+        var collection = request is null ? null : await db.Collections
             .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
-            .FirstOrDefaultAsync(c => c.Id == _request.CollectionId);
+            .FirstOrDefaultAsync(c => c.Id == request.CollectionId);
 
         _collectionBase = collection?.VariableSets.FirstOrDefault(s => s.IsBase);
         _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
             ? collection.VariableSets.FirstOrDefault(s => s.Id == sid && !s.IsBase)
             : null;
 
-        State.SelectedCollectionId = _request?.CollectionId;
-        if (_request is not null)
+        State.SelectedCollectionId = request?.CollectionId;
+        if (request is not null)
         {
             var authState = await AuthProvider.GetAuthenticationStateAsync();
             var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
             State.IsReadOnly = userId is not null
-                ? await PermissionService.IsReadOnlyAsync(userId, _request.CollectionId)
+                ? await PermissionService.IsReadOnlyAsync(userId, request.CollectionId)
                 : true;
         }
         else
@@ -363,12 +444,32 @@ else
             State.IsReadOnly = false;
         }
 
+        _request = request;
+        var loadedAt = DateTime.UtcNow;
+        _draft = request is null ? null : RequestDraft.FromRequest(request, loadedAt);
+
+        if (request is not null && _currentUserId is not null)
+        {
+            _userVarValues = await db.UserVariableValues
+                .Where(v => v.UserId == _currentUserId && v.ScopeType == "request" && v.ScopeId == request.Id)
+                .ToListAsync();
+            _pendingPersonalValues = _userVarValues.ToDictionary(v => v.VariableKey, v => v.Value, StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            _userVarValues = [];
+            _pendingPersonalValues = new(StringComparer.OrdinalIgnoreCase);
+        }
+
         RebuildVariables();
     }
 
     private void RebuildVariables()
     {
-        _resolvedVariables = State.BuildVariables(_globalBase, _globalSubset, _collectionBase, _collectionSubset, _request);
+        _resolvedVariables = State.BuildVariables(
+            _globalBase, _globalSubset, _collectionBase, _collectionSubset,
+            _request,
+            _userVarValues);
     }
 
     private string Tooltip(string? text) => VariablePreview.Build(text, _resolvedVariables);
@@ -379,152 +480,244 @@ else
         catch { /* clipboard unavailable (non-HTTPS or denied) */ }
     }
 
+    // ── Field mutators — write to draft only ──────────────────────────────────
+
     private void OnNameInput(ChangeEventArgs e)
     {
-        if (_request is null) return;
-        _request.Name = e.Value?.ToString() ?? string.Empty;
+        if (_draft is null) return;
+        _draft.Name = e.Value?.ToString() ?? string.Empty;
+        _draft.MarkDirty();
     }
 
-    private async Task OnMethodChanged(ChangeEventArgs e)
+    private void OnMethodChanged(ChangeEventArgs e)
     {
-        if (_request is null) return;
-        if (State.IsReadOnly) return;
+        if (_draft is null || State.IsReadOnly) return;
         if (Enum.TryParse<HttpMethodKind>(e.Value?.ToString(), out var m))
         {
-            _request.Method = m;
-            await SaveRequestDebounced();
+            _draft.Method = m;
+            _draft.MarkDirty();
         }
     }
 
     private void OnUrlChanged(string value)
     {
-        if (_request is null) return;
-        _request.Url = value;
+        if (_draft is null) return;
+        _draft.Url = value;
+        _draft.MarkDirty();
     }
 
     private void OnBodyChanged(string value)
     {
-        if (_request is null) return;
-        _request.BodyContent = value;
+        if (_draft is null) return;
+        _draft.BodyContent = value;
+        _draft.MarkDirty();
     }
 
-    private async Task OnPostScriptChanged(string value)
+    private void OnPostScriptChanged(string value)
     {
-        if (_request is null) return;
-        if (State.IsReadOnly) return;
-        _request.PostScript = value;
-        await SaveRequestDebounced();
+        if (_draft is null || State.IsReadOnly) return;
+        _draft.PostScript = value;
+        _draft.MarkDirty();
     }
 
-    private async Task OnBodyKindChanged(BodyKind kind)
+    private void OnBodyKindChanged(BodyKind kind)
     {
-        if (_request is null) return;
-        if (State.IsReadOnly) return;
-        _request.BodyKind = kind;
-        await SaveRequestDebounced();
+        if (_draft is null || State.IsReadOnly) return;
+        _draft.BodyKind = kind;
+        _draft.MarkDirty();
     }
 
-    private async Task SaveRequestDebounced()
+    // ── Child item methods — mutate draft, no DB ──────────────────────────────
+
+    private Task SaveHeaderAsync(object item)
     {
-        if (_request is null) return;
-        if (State.IsReadOnly) return;
-        _request.UpdatedAt = DateTime.UtcNow;
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.Requests.Update(_request);
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
+        if (State.IsReadOnly || _draft is null) return Task.CompletedTask;
+        _draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task SaveHeaderAsync(object item)
+    private Task RemoveHeaderAsync(object item)
     {
-        if (State.IsReadOnly) return;
-        var h = (HeaderItem)item;
-        using var db = await DbFactory.CreateDbContextAsync();
-        if (h.Id == 0) db.Headers.Add(h);
-        else db.Headers.Update(h);
-        await db.SaveChangesAsync();
+        if (State.IsReadOnly || _draft is null) return Task.CompletedTask;
+        _draft.Headers.Remove((HeaderItem)item);
+        _draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task RemoveHeaderAsync(object item)
+    private Task SaveQueryParamAsync(object item)
     {
-        if (State.IsReadOnly) return;
-        var h = (HeaderItem)item;
-        if (h.Id == 0) { _request?.Headers.Remove(h); return; }
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.Headers.Remove(await db.Headers.FirstAsync(x => x.Id == h.Id));
-        await db.SaveChangesAsync();
-        _request?.Headers.Remove(h);
+        if (State.IsReadOnly || _draft is null) return Task.CompletedTask;
+        _draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task SaveQueryParamAsync(object item)
+    private Task RemoveQueryParamAsync(object item)
     {
-        if (State.IsReadOnly) return;
-        var p = (QueryParamItem)item;
-        using var db = await DbFactory.CreateDbContextAsync();
-        if (p.Id == 0) db.QueryParams.Add(p);
-        else db.QueryParams.Update(p);
-        await db.SaveChangesAsync();
+        if (State.IsReadOnly || _draft is null) return Task.CompletedTask;
+        _draft.QueryParams.Remove((QueryParamItem)item);
+        _draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task RemoveQueryParamAsync(object item)
+    private Task SaveFormFieldAsync(object item)
     {
-        if (State.IsReadOnly) return;
-        var p = (QueryParamItem)item;
-        if (p.Id == 0) { _request?.QueryParams.Remove(p); return; }
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.QueryParams.Remove(await db.QueryParams.FirstAsync(x => x.Id == p.Id));
-        await db.SaveChangesAsync();
-        _request?.QueryParams.Remove(p);
+        if (State.IsReadOnly || _draft is null) return Task.CompletedTask;
+        _draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task SaveFormFieldAsync(object item)
+    private Task RemoveFormFieldAsync(object item)
     {
-        if (State.IsReadOnly) return;
-        var f = (FormFieldItem)item;
-        using var db = await DbFactory.CreateDbContextAsync();
-        if (f.Id == 0) db.FormFields.Add(f);
-        else db.FormFields.Update(f);
-        await db.SaveChangesAsync();
+        if (State.IsReadOnly || _draft is null) return Task.CompletedTask;
+        _draft.FormFields.Remove((FormFieldItem)item);
+        _draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task RemoveFormFieldAsync(object item)
-    {
-        if (State.IsReadOnly) return;
-        var f = (FormFieldItem)item;
-        if (f.Id == 0) { _request?.FormFields.Remove(f); return; }
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.FormFields.Remove(await db.FormFields.FirstAsync(x => x.Id == f.Id));
-        await db.SaveChangesAsync();
-        _request?.FormFields.Remove(f);
-    }
+    // ── Variable methods — keys in draft, values personal ─────────────────────
 
-    private async Task SaveRequestVarAsync(object item)
+    private async Task OnRequestVarChangedAsync(object item)
     {
-        if (State.IsReadOnly) return;
+        if (State.IsReadOnly || _draft is null || _currentUserId is null) return;
         var v = (RequestVariable)item;
-        using var db = await DbFactory.CreateDbContextAsync();
-        if (v.Id == 0) db.RequestVariables.Add(v);
-        else db.RequestVariables.Update(v);
-        await db.SaveChangesAsync();
+        _draft.MarkDirty();
+        if (_pendingPersonalValues.TryGetValue(v.Key, out var personalValue))
+            await UpsertPersonalValueAsync("request", _draft.RequestId, v.Key, personalValue);
         RebuildVariables();
     }
 
     private async Task RemoveRequestVarAsync(object item)
     {
-        if (State.IsReadOnly) return;
+        if (State.IsReadOnly || _draft is null) return;
         var v = (RequestVariable)item;
-        if (v.Id == 0) { _request?.Variables.Remove(v); RebuildVariables(); return; }
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.RequestVariables.Remove(await db.RequestVariables.FirstAsync(x => x.Id == v.Id));
+        _draft.Variables.Remove(v);
+        _pendingPersonalValues.Remove(v.Key);
+        _draft.MarkDirty();
+        RebuildVariables();
+        if (_currentUserId is not null)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var existing = await db.UserVariableValues.FirstOrDefaultAsync(uv =>
+                uv.UserId == _currentUserId && uv.ScopeType == "request" &&
+                uv.ScopeId == _draft.RequestId && uv.VariableKey == v.Key);
+            if (existing is not null)
+            {
+                db.UserVariableValues.Remove(existing);
+                await db.SaveChangesAsync();
+            }
+        }
+    }
+
+    private async Task UpsertPersonalValueAsync(string scopeType, int scopeId, string key, string value)
+    {
+        if (_currentUserId is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var existing = await db.UserVariableValues.FirstOrDefaultAsync(uv =>
+            uv.UserId == _currentUserId && uv.ScopeType == scopeType &&
+            uv.ScopeId == scopeId && uv.VariableKey == key);
+        if (existing is null)
+            db.UserVariableValues.Add(new UserVariableValue
+            {
+                UserId = _currentUserId, ScopeType = scopeType, ScopeId = scopeId,
+                VariableKey = key, Value = value
+            });
+        else
+            existing.Value = value;
         await db.SaveChangesAsync();
-        _request?.Variables.Remove(v);
+        var memEntry = _userVarValues.FirstOrDefault(v => v.VariableKey == key);
+        if (memEntry is null)
+            _userVarValues.Add(new UserVariableValue { UserId = _currentUserId, ScopeType = scopeType, ScopeId = scopeId, VariableKey = key, Value = value });
+        else
+            memEntry.Value = value;
         RebuildVariables();
     }
 
+    // ── Save + modal handlers ─────────────────────────────────────────────────
+
+    private async Task SaveDraftAsync(bool forceOverwrite)
+    {
+        if (_draft is null || _currentUserId is null || State.IsReadOnly) return;
+
+        var result = await SaveService.SaveAsync(_draft, _currentUserId, _currentUserName ?? "Unknown", forceOverwrite);
+
+        if (result.IsConflict)
+        {
+            _conflictByUserName = result.ConflictByUserName;
+            _conflictAt = result.ConflictAt;
+            _showConflictModal = true;
+            return;
+        }
+
+        await LoadEnvAsync();
+        await LoadRequestAsync();
+    }
+
+    private async Task OnSaveOverwriteAsync()
+    {
+        _showConflictModal = false;
+        await SaveDraftAsync(forceOverwrite: true);
+    }
+
+    private void OnCancelSave()
+    {
+        _showConflictModal = false;
+    }
+
+    private async Task OnDiscardAndNavigateAsync()
+    {
+        _showUnsavedModal = false;
+        _draft = null;
+        State.SelectedRequestId = _pendingRequestId;
+        _pendingRequestId = null;
+        await LoadEnvAsync();
+        await LoadRequestAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnSaveAndNavigateAsync()
+    {
+        _showUnsavedModal = false;
+        await SaveDraftAsync(forceOverwrite: false);
+        if (!_showConflictModal)
+        {
+            State.SelectedRequestId = _pendingRequestId;
+            _pendingRequestId = null;
+            await LoadEnvAsync();
+            await LoadRequestAsync();
+        }
+    }
+
+    private async Task OnReloadFromServerAsync()
+    {
+        _reloadToast = null;
+        await LoadEnvAsync();
+        await LoadRequestAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnDismissToast()
+    {
+        _reloadToast = null;
+    }
+
+    private async Task OnRequestSavedByOther(int requestId, string savedByUserId, string savedByUserName)
+    {
+        if (requestId == _draft?.RequestId && savedByUserId != _currentUserId)
+            await InvokeAsync(() =>
+            {
+                _reloadToast = $"{savedByUserName} vient de sauvegarder cette requête.";
+                StateHasChanged();
+            });
+    }
+
+    // ── Send ──────────────────────────────────────────────────────────────────
+
     private async Task SendAsync()
     {
+        if (_draft?.IsDirty == true)
+            await SaveDraftAsync(forceOverwrite: false);
+        if (_showConflictModal) return;
         if (_request is null) return;
-        await SaveRequestDebounced();
 
         _sending = true;
         _result = null;
@@ -603,6 +796,8 @@ else
         RebuildVariables();
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private static string StatusClass(int code) => code switch
     {
         >= 200 and < 300 => "2xx",
@@ -634,16 +829,16 @@ else
 
     private int TabBadgeCount(string tab) => tab switch
     {
-        "Params"    => _request?.QueryParams.Count(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key)) ?? 0,
-        "Headers"   => _request?.Headers.Count(h => !string.IsNullOrWhiteSpace(h.Key)) ?? 0,
-        "Variables" => _request?.Variables.Count ?? 0,
+        "Params"    => _draft?.QueryParams.Count(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key)) ?? 0,
+        "Headers"   => _draft?.Headers.Count(h => !string.IsNullOrWhiteSpace(h.Key)) ?? 0,
+        "Variables" => _draft?.Variables.Count ?? 0,
         _           => 0
     };
 
     private bool TabHasDot(string tab) => tab switch
     {
-        "Body"    => !string.IsNullOrWhiteSpace(_request?.BodyContent),
-        "Scripts" => !string.IsNullOrWhiteSpace(_request?.PostScript),
+        "Body"    => !string.IsNullOrWhiteSpace(_draft?.BodyContent),
+        "Scripts" => !string.IsNullOrWhiteSpace(_draft?.PostScript),
         _         => false
     };
 }

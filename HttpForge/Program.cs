@@ -80,6 +80,8 @@ builder.Services.AddScoped<TeamService>();
 builder.Services.AddSingleton<PostRegistrationTokenService>();
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<EmailSender>();
+builder.Services.AddSingleton<RequestChangeNotifier>();
+builder.Services.AddScoped<RequestSaveService>();
 
 var app = builder.Build();
 
