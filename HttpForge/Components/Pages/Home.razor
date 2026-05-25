@@ -44,14 +44,6 @@ else
         <div class="request-name-row">
             <input class="request-name-input" value="@_draft.Name"
                    @oninput="OnNameInput" placeholder="Request name" />
-            @if (!State.IsReadOnly)
-            {
-                <button class="save-btn @(_draft.IsDirty ? "save-btn--dirty" : "")"
-                        disabled="@(!_draft.IsDirty)"
-                        @onclick="() => SaveDraftAsync(false)">
-                    @(_draft.IsDirty ? "● Save" : "Saved")
-                </button>
-            }
         </div>
         <div class="url-bar">
             <select class="method-select method-@_draft.Method.ToString().ToLower()"
@@ -67,6 +59,10 @@ else
                            Placeholder="https://api.example.com/path"
                            Title="@Tooltip(_draft.Url)"
                            EnvVariables="_resolvedVariables" />
+            @if (!State.IsReadOnly && _draft.IsDirty)
+            {
+                <button class="save-btn" @onclick="() => SaveDraftAsync(false)">Save</button>
+            }
             <button class="send-btn" @onclick="SendAsync" disabled="@_sending">
                 @(_sending ? "Sending…" : "Send")
             </button>
