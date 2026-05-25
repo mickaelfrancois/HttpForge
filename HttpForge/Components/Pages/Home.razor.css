@@ -104,9 +104,9 @@
 }
 
 .save-btn {
-    background: #2e7d32;
-    color: #fff;
-    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-input);
     border-radius: 3px;
     padding: 0.45rem 1.5rem;
     cursor: pointer;
@@ -114,7 +114,8 @@
 }
 
 .save-btn:hover {
-    background: #388e3c;
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .tabs {
