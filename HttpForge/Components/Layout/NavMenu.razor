@@ -5,6 +5,7 @@
 @inject InsomniaImporter Importer
 @inject PermissionService PermissionService
 @inject AuthenticationStateProvider AuthProvider
+@inject TabManagerService Tabs
 @implements IDisposable
 
 <div class="brand">
@@ -716,11 +717,8 @@
         using var db = await DbFactory.CreateDbContextAsync();
         db.Collections.Remove(await db.Collections.FirstAsync(x => x.Id == c.Id));
         await db.SaveChangesAsync();
-        if (c.Requests.Any(r => r.Id == State.SelectedRequestId))
-        {
-            State.SelectedRequestId = null;
-            State.NotifyChanged();
-        }
+        foreach (var r in c.Requests)
+            Tabs.ForceCloseTab(r.Id);
         await ReloadAsync();
     }
 
@@ -737,9 +735,8 @@
         db.Requests.Add(r);
         await db.SaveChangesAsync();
         _expanded.Add(c.Id);
-        State.SelectedRequestId = r.Id;
-        State.NotifyChanged();
         await ReloadAsync();
+        await Tabs.OpenTabAsync(r.Id, _currentUserId ?? string.Empty);
     }
 
     private async Task ReloadAndNotify(int collectionId)

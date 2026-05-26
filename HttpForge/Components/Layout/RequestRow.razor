@@ -154,9 +154,8 @@
         };
         db.Requests.Add(copy);
         await db.SaveChangesAsync();
-        State.SelectedRequestId = copy.Id;
-        State.NotifyChanged();
         await OnChanged.InvokeAsync(copy.CollectionId);
+        await Tabs.OpenTabAsync(copy.Id, UserId);
     }
 
     private async Task Delete()

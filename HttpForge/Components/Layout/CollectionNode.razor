@@ -3,6 +3,7 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
 @inject IJSRuntime JS
+@inject TabManagerService Tabs
 
 @* Renders the contents of a collection root (ParentFolderId=null) or a folder. *@
 @* Folder header is rendered by the PARENT; this component renders CHILDREN. *@
@@ -278,11 +279,8 @@
 
         await db.SaveChangesAsync();
 
-        if (State.SelectedRequestId.HasValue &&
-            requests.Any(r => r.Id == State.SelectedRequestId))
-        {
-            State.SelectedRequestId = null;
-        }
+        foreach (var deleted in requests)
+            Tabs.ForceCloseTab(deleted.Id);
         await OnChanged.InvokeAsync(CollectionId);
         State.NotifyChanged();
     }
@@ -300,9 +298,8 @@
         };
         db.Requests.Add(r);
         await db.SaveChangesAsync();
-        State.SelectedRequestId = r.Id;
-        State.NotifyChanged();
         await OnChanged.InvokeAsync(CollectionId);
+        await Tabs.OpenTabAsync(r.Id, UserId);
     }
 
     private List<int> GetAllDescendantFolderIds(int folderId, HashSet<int>? visited = null)
