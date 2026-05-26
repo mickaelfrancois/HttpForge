@@ -62,15 +62,8 @@ if (!string.IsNullOrEmpty(msId) && !string.IsNullOrEmpty(msSecret))
 if (!string.IsNullOrEmpty(ghId) && !string.IsNullOrEmpty(ghSecret))
     authBuilder.AddGitHub(o => { o.ClientId = ghId!; o.ClientSecret = ghSecret!; });
 
-builder.Services.AddHttpClient("forge")
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        AllowAutoRedirect = true,
-        UseCookies = false
-    });
-
-builder.Services.AddScoped<RequestExecutor>();
 builder.Services.AddScoped<VariableResolver>();
+builder.Services.AddScoped(sp => new RequestExecutor(sp.GetRequiredService<VariableResolver>()));
 builder.Services.AddScoped<InsomniaImporter>();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<ScriptRunner>();

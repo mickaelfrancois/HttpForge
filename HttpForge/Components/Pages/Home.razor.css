@@ -297,6 +297,79 @@
     font-size: 0.85rem;
 }
 
+/* Timing waterfall */
+.timing-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    font-size: 0.82rem;
+}
+
+.timing-waterfall {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.timing-row {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr 4.5rem;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.timing-label {
+    color: var(--text-dim);
+}
+
+.timing-track {
+    position: relative;
+    height: 0.85rem;
+    background: var(--bg-input);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.timing-seg {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width 0.2s ease;
+}
+
+.seg-dns      { background: var(--method-get); }
+.seg-connect  { background: var(--method-put); }
+.seg-tls      { background: var(--method-patch); }
+.seg-wait     { background: var(--accent-blue); }
+.seg-download { background: var(--method-post); }
+
+.timing-ms {
+    text-align: right;
+    color: var(--text-code);
+    font-family: 'Consolas', monospace;
+}
+
+.timing-table {
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.timing-table th {
+    text-align: left;
+    color: var(--header-key-color);
+    padding: 0.2rem 1rem 0.2rem 0;
+    font-weight: 600;
+    width: 6rem;
+}
+
+.timing-table td {
+    color: var(--text-code);
+    padding: 0.2rem 0;
+    font-family: 'Consolas', monospace;
+    word-break: break-all;
+}
+
 .url-preview-panel {
     margin: 0 1rem 0.4rem;
     border: 1px solid var(--border-main);

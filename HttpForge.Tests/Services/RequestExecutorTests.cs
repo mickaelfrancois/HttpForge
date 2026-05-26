@@ -3,7 +3,6 @@ using System.Net;
 using HttpForge.Data.Entities;
 using HttpForge.Services;
 using HttpForge.Tests.Helpers;
-using Moq;
 
 namespace HttpForge.Tests.Services;
 
@@ -12,10 +11,7 @@ public class RequestExecutorTests
     private static (RequestExecutor sut, FakeHttpMessageHandler handler) Create()
     {
         var handler = new FakeHttpMessageHandler();
-        var client = new HttpClient(handler);
-        var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("forge")).Returns(client);
-        return (new RequestExecutor(factory.Object, new VariableResolver()), handler);
+        return (new RequestExecutor(new VariableResolver(), () => handler), handler);
     }
 
     private static readonly IReadOnlyDictionary<string, string> NoVars = new Dictionary<string, string>();

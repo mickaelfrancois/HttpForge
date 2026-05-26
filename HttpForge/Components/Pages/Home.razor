@@ -224,13 +224,38 @@ else
                     <span>📦 @tab.Result.BodyBytes B</span>
                     <button class="tab @(tab.ActiveResponseTab == "Body" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Body")">Body</button>
                     <button class="tab @(tab.ActiveResponseTab == "Headers" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Headers")">Headers (@tab.Result.Headers.Count)</button>
+                    @if (tab.Result.Timing is not null)
+                    {
+                        <button class="tab @(tab.ActiveResponseTab == "Timing" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Timing")">Timing</button>
+                    }
                 </div>
                 <div class="response-body">
-                    @if (tab.ActiveResponseTab == "Body")
+                    @if (tab.ActiveResponseTab == "Timing" && tab.Result.Timing is { } tm)
                     {
-                        <JsonViewer Value="@FormatBody(tab.Result.Body)" />
+                        <div class="timing-pane">
+                            @{ var _tot = Math.Max(1, tm.TotalMs); }
+                            <div class="timing-waterfall">
+                                @foreach (var phase in TimingPhases(tm))
+                                {
+                                    <div class="timing-row">
+                                        <span class="timing-label">@phase.Label</span>
+                                        <div class="timing-track">
+                                            <span class="timing-seg seg-@phase.Key" style="width:@Pct(phase.Ms, _tot)%"></span>
+                                        </div>
+                                        <span class="timing-ms">@phase.Ms ms</span>
+                                    </div>
+                                }
+                            </div>
+                            <table class="timing-table">
+                                <tr><th>HTTP</th><td>HTTP/@tm.HttpVersion</td></tr>
+                                <tr><th>TLS</th><td>@(string.IsNullOrEmpty(tm.TlsProtocol) ? "—" : tm.TlsProtocol)</td></tr>
+                                <tr><th>Cipher</th><td>@(string.IsNullOrEmpty(tm.TlsCipher) ? "—" : tm.TlsCipher)</td></tr>
+                                <tr><th>ALPN</th><td>@(string.IsNullOrEmpty(tm.NegotiatedAlpn) ? "—" : tm.NegotiatedAlpn)</td></tr>
+                                <tr><th>Total</th><td>@tm.TotalMs ms</td></tr>
+                            </table>
+                        </div>
                     }
-                    else
+                    else if (tab.ActiveResponseTab == "Headers")
                     {
                         <table class="header-table">
                             @foreach (var h in tab.Result.Headers.OrderBy(h => h.Key))
@@ -238,6 +263,10 @@ else
                                 <tr><th>@h.Key</th><td>@h.Value</td></tr>
                             }
                         </table>
+                    }
+                    else
+                    {
+                        <JsonViewer Value="@FormatBody(tab.Result.Body)" />
                     }
                 </div>
                 @if (tab.ScriptResult is not null)
@@ -864,6 +893,18 @@ else
 
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..max] + "…";
+
+    private static int Pct(long part, long total) =>
+        total <= 0 ? 0 : (int)Math.Round(100.0 * part / total);
+
+    private static IEnumerable<(string Key, string Label, long Ms)> TimingPhases(RequestTiming t)
+    {
+        yield return ("dns", "DNS", t.DnsMs);
+        yield return ("connect", "TCP", t.ConnectMs);
+        yield return ("tls", "TLS", t.TlsMs);
+        yield return ("wait", "Waiting (TTFB)", t.WaitingMs);
+        yield return ("download", "Download", t.DownloadMs);
+    }
 
     private int TabBadgeCount(string subTab) => subTab switch
     {

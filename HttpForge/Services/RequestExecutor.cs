@@ -1,9 +1,24 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Security;
+using System.Net.Sockets;
 using System.Text;
 using HttpForge.Data.Entities;
 
 namespace HttpForge.Services;
+
+public record RequestTiming(
+    long DnsMs,
+    long ConnectMs,
+    long TlsMs,
+    long WaitingMs,
+    long DownloadMs,
+    long TotalMs,
+    string? TlsProtocol,
+    string? TlsCipher,
+    string? NegotiatedAlpn,
+    string HttpVersion);
 
 public record ExecutionResult(
     int StatusCode,
@@ -12,17 +27,21 @@ public record ExecutionResult(
     Dictionary<string, string> Headers,
     long ElapsedMs,
     long BodyBytes,
-    string? Error);
+    string? Error,
+    RequestTiming? Timing = null);
 
 public class RequestExecutor
 {
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly VariableResolver _resolver;
 
-    public RequestExecutor(IHttpClientFactory httpClientFactory, VariableResolver resolver)
+    // Test seam: when provided, this handler is used instead of the production
+    // SocketsHttpHandler (so unit tests can inject a fake). Timing is skipped.
+    private readonly Func<HttpMessageHandler>? _handlerFactory;
+
+    public RequestExecutor(VariableResolver resolver, Func<HttpMessageHandler>? handlerFactory = null)
     {
-        _httpClientFactory = httpClientFactory;
         _resolver = resolver;
+        _handlerFactory = handlerFactory;
     }
 
     public async Task<ExecutionResult> ExecuteAsync(
@@ -31,6 +50,7 @@ public class RequestExecutor
         CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+        var probe = new ConnectionProbe();
         try
         {
             var url = BuildUrl(request, variables);
@@ -51,32 +71,120 @@ public class RequestExecutor
                 }
             }
 
-            var client = _httpClientFactory.CreateClient("forge");
+            var (handler, ownsHandler) = CreateHandler(probe);
+            using var client = new HttpClient(handler, disposeHandler: ownsHandler);
             client.Timeout = TimeSpan.FromMinutes(2);
 
-            using var response = await client.SendAsync(msg, HttpCompletionOption.ResponseContentRead, ct);
+            using var response = await client.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, ct);
+            var headersAtMs = sw.ElapsedMilliseconds;
 
             var body = await response.Content.ReadAsStringAsync(ct);
+            sw.Stop();
+            var totalMs = sw.ElapsedMilliseconds;
+
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var h in response.Headers)
                 headers[h.Key] = string.Join(", ", h.Value);
             foreach (var h in response.Content.Headers)
                 headers[h.Key] = string.Join(", ", h.Value);
 
-            sw.Stop();
+            RequestTiming? timing = probe.Captured
+                ? new RequestTiming(
+                    probe.DnsMs,
+                    probe.ConnectMs,
+                    probe.TlsMs,
+                    Math.Max(0, headersAtMs - (probe.DnsMs + probe.ConnectMs + probe.TlsMs)),
+                    Math.Max(0, totalMs - headersAtMs),
+                    totalMs,
+                    probe.TlsProtocol,
+                    probe.TlsCipher,
+                    probe.Alpn,
+                    $"{response.Version.Major}.{response.Version.Minor}")
+                : null;
+
             return new ExecutionResult(
                 (int)response.StatusCode,
                 response.ReasonPhrase ?? string.Empty,
                 body,
                 headers,
-                sw.ElapsedMilliseconds,
+                totalMs,
                 Encoding.UTF8.GetByteCount(body),
-                null);
+                null,
+                timing);
         }
         catch (Exception ex)
         {
             sw.Stop();
             return new ExecutionResult(0, string.Empty, string.Empty, new(), sw.ElapsedMilliseconds, 0, ex.Message);
+        }
+    }
+
+    private (HttpMessageHandler handler, bool owns) CreateHandler(ConnectionProbe probe)
+    {
+        if (_handlerFactory is not null)
+            return (_handlerFactory(), false);
+
+        var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = true,
+            UseCookies = false,
+            ConnectCallback = (ctx, ct) => ConnectAsync(ctx, probe, ct)
+        };
+        return (handler, true);
+    }
+
+    // Establishes the connection manually so each phase can be timed.
+    // For HTTPS we perform the TLS handshake here and return the authenticated
+    // SslStream; SocketsHttpHandler (since .NET 7) detects this and does not
+    // layer a second TLS session on top.
+    private static async ValueTask<Stream> ConnectAsync(
+        SocketsHttpConnectionContext ctx, ConnectionProbe probe, CancellationToken ct)
+    {
+        var ep = ctx.DnsEndPoint;
+        var isHttps = string.Equals(
+            ctx.InitialRequestMessage.RequestUri?.Scheme, "https", StringComparison.OrdinalIgnoreCase);
+
+        var swDns = Stopwatch.StartNew();
+        var addresses = await Dns.GetHostAddressesAsync(ep.Host, ct);
+        swDns.Stop();
+
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            var swConnect = Stopwatch.StartNew();
+            await socket.ConnectAsync(addresses, ep.Port, ct);
+            swConnect.Stop();
+
+            Stream stream = new NetworkStream(socket, ownsSocket: true);
+            long tlsMs = 0;
+            string? proto = null, cipher = null, alpn = null;
+
+            if (isHttps)
+            {
+                var ssl = new SslStream(stream, leaveInnerStreamOpen: false);
+                var swTls = Stopwatch.StartNew();
+                await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+                {
+                    TargetHost = ep.Host,
+                    ApplicationProtocols = [SslApplicationProtocol.Http11]
+                }, ct);
+                swTls.Stop();
+
+                tlsMs = swTls.ElapsedMilliseconds;
+                proto = ssl.SslProtocol.ToString();
+                try { cipher = ssl.NegotiatedCipherSuite.ToString(); } catch { /* not supported on all OSes */ }
+                var negotiated = ssl.NegotiatedApplicationProtocol.ToString();
+                alpn = string.IsNullOrEmpty(negotiated) ? null : negotiated;
+                stream = ssl;
+            }
+
+            probe.Set(swDns.ElapsedMilliseconds, swConnect.ElapsedMilliseconds, tlsMs, proto, cipher, alpn);
+            return stream;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
         }
     }
 
@@ -126,6 +234,28 @@ public class RequestExecutor
             }
             default:
                 return null;
+        }
+    }
+
+    private sealed class ConnectionProbe
+    {
+        public bool Captured { get; private set; }
+        public long DnsMs { get; private set; }
+        public long ConnectMs { get; private set; }
+        public long TlsMs { get; private set; }
+        public string? TlsProtocol { get; private set; }
+        public string? TlsCipher { get; private set; }
+        public string? Alpn { get; private set; }
+
+        public void Set(long dns, long connect, long tls, string? proto, string? cipher, string? alpn)
+        {
+            DnsMs = dns;
+            ConnectMs = connect;
+            TlsMs = tls;
+            TlsProtocol = proto;
+            TlsCipher = cipher;
+            Alpn = alpn;
+            Captured = true;
         }
     }
 }
