@@ -4,6 +4,7 @@
 @inject AppState State
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject TabManagerService Tabs
 
 <div class="request-row @(State.SelectedRequestId == Request.Id ? "selected" : "")"
      draggable="true"
@@ -63,6 +64,7 @@
     [Parameter, EditorRequired] public HttpRequestItem Request { get; set; } = null!;
     [Parameter] public EventCallback<int> OnChanged { get; set; }
     [Parameter] public bool CanWrite { get; set; } = true;
+    [Parameter] public string UserId { get; set; } = string.Empty;
 
     private bool _isHovered;
     private bool _menuOpen;
@@ -80,10 +82,9 @@
         }
     }
 
-    private void Select()
+    private async Task Select()
     {
-        State.SelectedRequestId = Request.Id;
-        State.NotifyChanged();
+        await Tabs.OpenTabAsync(Request.Id, UserId);
         var uri = new Uri(Navigation.Uri);
         if (uri.AbsolutePath != "/")
             Navigation.NavigateTo("/");
@@ -109,6 +110,12 @@
         r.Name = name;
         r.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        var openTab = Tabs.Tabs.FirstOrDefault(t => t.RequestId == Request.Id);
+        if (openTab is not null)
+        {
+            openTab.Name = name;
+            openTab.Draft.Name = name;
+        }
         await OnChanged.InvokeAsync(Request.CollectionId);
     }
 
@@ -160,6 +167,7 @@
         using var db = await DbFactory.CreateDbContextAsync();
         db.Requests.Remove(await db.Requests.FirstAsync(x => x.Id == Request.Id));
         await db.SaveChangesAsync();
+        Tabs.ForceCloseTab(Request.Id);
         if (State.SelectedRequestId == Request.Id)
         {
             State.SelectedRequestId = null;

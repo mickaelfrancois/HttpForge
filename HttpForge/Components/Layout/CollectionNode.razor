@@ -93,6 +93,7 @@
                                 AllRequests="AllRequests"
                                 OnChanged="OnChanged"
                                 CanWrite="CanWrite"
+                                UserId="@UserId"
                                 FilterText="@(FolderMatches(folder) ? string.Empty : FilterText)" />
             </div>
         }
@@ -102,7 +103,7 @@
 @* Requests at this level *@
 @foreach (var r in DirectRequests)
 {
-    <RequestRow Request="r" CanWrite="CanWrite" OnChanged="OnChanged" />
+    <RequestRow Request="r" CanWrite="CanWrite" OnChanged="OnChanged" UserId="@UserId" />
 }
 
 @* Inline "add folder" at this level (when _addingUnder == -1) *@
@@ -125,6 +126,7 @@
     [Parameter] public EventCallback<int> OnChanged { get; set; }
     [Parameter] public string FilterText { get; set; } = string.Empty;
     [Parameter] public bool CanWrite { get; set; } = true;
+    [Parameter] public string UserId { get; set; } = string.Empty;
 
     private bool IsFiltering => !string.IsNullOrWhiteSpace(FilterText);
 
