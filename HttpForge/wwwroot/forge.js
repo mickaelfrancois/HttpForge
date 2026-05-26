@@ -104,6 +104,18 @@ window.forge.sidebar = {
     }
 };
 
+window.forge.tabs = {
+    save: function (json) {
+        try { localStorage.setItem('forge_tabs', json); } catch (_) { }
+    },
+    load: function () {
+        try { return localStorage.getItem('forge_tabs'); } catch (_) { return null; }
+    },
+    clear: function () {
+        try { localStorage.removeItem('forge_tabs'); } catch (_) { }
+    }
+};
+
 // MainLayout renders as Static SSR (no @rendermode) so OnAfterRenderAsync never fires.
 // Initialize directly from JS — elements are in the DOM when this script loads.
 (function () {
