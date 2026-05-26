@@ -43,12 +43,18 @@
     private bool _contextMenuVisible;
     private double _ctxX, _ctxY;
     private int _ctxRequestId;
+    private Action? _onChange;
 
     protected override void OnInitialized()
-        => Tabs.OnChange += StateHasChanged;
+    {
+        _onChange = () => InvokeAsync(StateHasChanged);
+        Tabs.OnChange += _onChange;
+    }
 
     public void Dispose()
-        => Tabs.OnChange -= StateHasChanged;
+    {
+        if (_onChange is not null) Tabs.OnChange -= _onChange;
+    }
 
     private void ShowContextMenu(MouseEventArgs e, int requestId)
     {

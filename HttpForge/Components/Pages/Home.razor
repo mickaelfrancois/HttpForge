@@ -433,6 +433,10 @@ else
             .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
             .FirstOrDefaultAsync(c => c.Id == request.CollectionId);
 
+        // A concurrent activate/close may have changed the active tab while we awaited;
+        // a fresh OnStateChanged is already in flight for the new tab, so bail out.
+        if (!ReferenceEquals(Active, active)) return;
+
         _collectionBase = collection?.VariableSets.FirstOrDefault(s => s.IsBase);
         _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
             ? collection.VariableSets.FirstOrDefault(s => s.Id == sid && !s.IsBase)
