@@ -16,4 +16,5 @@ public class TabState
     public ExecutionResult? Result { get; set; }
     public ScriptResult? ScriptResult { get; set; }
     public bool IsSending { get; set; }
+    public bool IsReadOnly { get; set; }
 }
