@@ -82,6 +82,7 @@ builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"
 builder.Services.AddScoped<EmailSender>();
 builder.Services.AddSingleton<RequestChangeNotifier>();
 builder.Services.AddScoped<RequestSaveService>();
+builder.Services.AddScoped<TabManagerService>();
 
 var app = builder.Build();
 
