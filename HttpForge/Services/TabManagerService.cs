@@ -11,7 +11,7 @@ namespace HttpForge.Services;
 public record TabStorageState(int RequestId, string ActiveSubTab);
 public record TabStorageData(TabStorageState[] Tabs, int? ActiveRequestId);
 
-public class TabManagerService(IDbContextFactory<AppDbContext> dbFactory, AppState appState, PermissionService permissionService)
+public class TabManagerService(IDbContextFactory<AppDbContext> dbFactory, AppState appState)
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
     private readonly List<TabState> _tabs = [];
@@ -108,10 +108,6 @@ public class TabManagerService(IDbContextFactory<AppDbContext> dbFactory, AppSta
             .Include(r => r.Variables)
             .FirstOrDefaultAsync(r => r.Id == requestId);
         if (request is null) return;
-
-        var isReadOnly = !string.IsNullOrEmpty(userId)
-            ? await permissionService.IsReadOnlyAsync(userId, request.CollectionId)
-            : true;
 
         var userVarValues = !string.IsNullOrEmpty(userId)
             ? await db.UserVariableValues
