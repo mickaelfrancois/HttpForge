@@ -1,0 +1,66 @@
+@implements IDisposable
+@inject TabManagerService Tabs
+
+<div class="tab-bar" @oncontextmenu:preventDefault>
+    @foreach (var tab in Tabs.Tabs)
+    {
+        var isActive = tab.RequestId == Tabs.ActiveTab?.RequestId;
+        var isDirty = tab.Draft.IsDirty;
+        <div class="tab @(isActive ? "active" : "") @(isDirty ? "dirty" : "")"
+             @onclick="() => Tabs.ActivateTab(tab.RequestId)"
+             @oncontextmenu="(e) => ShowContextMenu(e, tab.RequestId)">
+            <span class="method-badge method-@tab.Method.ToLowerInvariant()">@tab.Method</span>
+            @if (isDirty)
+            {
+                <span class="tab-dirty">&#10033;</span>
+            }
+            <span class="tab-name" title="@tab.Name">@tab.Name</span>
+            <span class="tab-close"
+                  @onclick="() => Tabs.CloseTab(tab.RequestId)"
+                  @onclick:stopPropagation>&#10005;</span>
+        </div>
+    }
+</div>
+
+@if (_contextMenuVisible)
+{
+    <div class="ctx-overlay" @onclick="HideContextMenu"></div>
+    <div class="ctx-menu" style="top:@(_ctxY.ToString("F0"))px;left:@(_ctxX.ToString("F0"))px">
+        <div class="ctx-item" @onclick="() => CloseFromCtx(_ctxRequestId)">
+            &#10005;&nbsp;&nbsp;Fermer l'onglet
+        </div>
+        <div class="ctx-item" @onclick="() => CloseOthersFromCtx(_ctxRequestId)">
+            &#9647;&nbsp;&nbsp;Fermer les autres
+        </div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item danger" @onclick="CloseAllFromCtx">
+            &#10005;&#10005;&nbsp;Fermer tous les onglets
+        </div>
+    </div>
+}
+
+@code {
+    private bool _contextMenuVisible;
+    private double _ctxX, _ctxY;
+    private int _ctxRequestId;
+
+    protected override void OnInitialized()
+        => Tabs.OnChange += StateHasChanged;
+
+    public void Dispose()
+        => Tabs.OnChange -= StateHasChanged;
+
+    private void ShowContextMenu(MouseEventArgs e, int requestId)
+    {
+        _ctxX = e.ClientX;
+        _ctxY = e.ClientY;
+        _ctxRequestId = requestId;
+        _contextMenuVisible = true;
+    }
+
+    private void HideContextMenu() => _contextMenuVisible = false;
+
+    private void CloseFromCtx(int requestId)       { Tabs.CloseTab(requestId); HideContextMenu(); }
+    private void CloseOthersFromCtx(int requestId) { Tabs.CloseOtherTabs(requestId); HideContextMenu(); }
+    private void CloseAllFromCtx()                 { Tabs.CloseAllTabs(); HideContextMenu(); }
+}
