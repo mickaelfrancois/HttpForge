@@ -254,3 +254,9 @@ h1:focus {
     transition: background 0.15s;
 }
 .btn-copy:hover { background: var(--border-input); }
+
+/* Request "Options" sub-tab */
+.options-tab { padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.tls-toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; }
+.tls-toggle input { width: 1rem; height: 1rem; cursor: pointer; accent-color: var(--accent-blue); }
+.options-hint { font-size: 0.8rem; color: var(--text-muted); max-width: 52ch; line-height: 1.4; }

@@ -202,6 +202,21 @@ else
                         </div>
                     </div>
                     break;
+                case "Options":
+                    <div class="options-tab">
+                        <label class="tls-toggle">
+                            <input type="checkbox"
+                                   checked="@tab.Draft.IgnoreTlsErrors"
+                                   disabled="@State.IsReadOnly"
+                                   @onchange="OnIgnoreTlsChanged" />
+                            <span>Ignorer les erreurs de certificat TLS</span>
+                        </label>
+                        <div class="options-hint">
+                            ⚠ Désactive la validation du certificat (autorité, nom d'hôte, expiration)
+                            pour cette requête. À n'utiliser que sur des services de confiance.
+                        </div>
+                    </div>
+                    break;
             }
         </div>
 
@@ -348,7 +363,7 @@ else
     private CollectionVariableSet? _collectionBase;
     private CollectionVariableSet? _collectionSubset;
     private IReadOnlyList<ResolvedVariableEntry> _resolvedVariables = Array.Empty<ResolvedVariableEntry>();
-    private readonly string[] _subTabs = ["Params", "Headers", "Body", "Variables", "Scripts"];
+    private readonly string[] _subTabs = ["Params", "Headers", "Body", "Variables", "Scripts", "Options"];
 
     private string? _currentUserId;
     private string? _currentUserName;
@@ -523,6 +538,13 @@ else
     {
         if (Active is null) return;
         Active.Draft.Url = value;
+        Active.Draft.MarkDirty();
+    }
+
+    private void OnIgnoreTlsChanged(ChangeEventArgs e)
+    {
+        if (Active is null || State.IsReadOnly) return;
+        Active.Draft.IgnoreTlsErrors = e.Value is true;
         Active.Draft.MarkDirty();
     }
 
@@ -921,6 +943,7 @@ else
     {
         "Body"    => !string.IsNullOrWhiteSpace(Active?.Draft.BodyContent),
         "Scripts" => !string.IsNullOrWhiteSpace(Active?.Draft.PostScript),
+        "Options" => Active?.Draft.IgnoreTlsErrors ?? false,
         _         => false
     };
 }
