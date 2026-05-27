@@ -64,6 +64,11 @@ h1:focus {
     color: white !important;
 }
 
+/* JSON response viewer fills the available height of the response body.
+   CodeMirror defaults .CodeMirror to height:300px; override so it stretches. */
+.json-viewer-wrap { height: 100%; }
+.json-viewer-wrap .CodeMirror { height: 100%; }
+
 /* CodeMirror JSON token colors — 3-class specificity beats .cm-s-default .cm-string (2 classes) */
 .json-viewer-wrap .CodeMirror .cm-string,
 .json-body-editor-wrap .CodeMirror .cm-string { color: var(--json-string); }
