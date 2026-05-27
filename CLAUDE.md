@@ -59,7 +59,7 @@ All JS is in `wwwroot/forge.js` under the `window.forge` namespace:
 |---|---|---|
 | `AppState` | Scoped | Current selection + variable merge + change notification |
 | `VariableResolver` | Scoped | `{{var}}` substitution |
-| `RequestExecutor` | Scoped | Builds and sends HTTP requests via a per-request `SocketsHttpHandler` whose `ConnectCallback` times DNS/TCP/TLS; returns a `RequestTiming` waterfall on `ExecutionResult` |
+| `RequestExecutor` | Scoped | Builds and sends HTTP requests via a per-request `SocketsHttpHandler` whose `ConnectCallback` times DNS/TCP/TLS and, when the request's `IgnoreTlsErrors` flag is set, skips server-certificate validation; returns a `RequestTiming` waterfall on `ExecutionResult` |
 | `ScriptRunner` | Scoped | Runs post-request JS via `forge.scripts.run`; persists mutations to DB |
 | `InsomniaImporter` | Scoped | Imports Insomnia v5 YAML (collection + environment files) |
 
