@@ -757,15 +757,18 @@ else
         _reloadToast = null;
     }
 
-    private async Task OnRequestSavedByOther(int requestId, string savedByUserId, string savedByUserName)
-    {
-        if (requestId == Active?.RequestId && savedByUserId != _currentUserId)
-            await InvokeAsync(() =>
+    // Invoked by the singleton notifier on the *saving* circuit's thread. Marshal
+    // everything onto this circuit's renderer before reading scoped state (Active),
+    // so we never touch another circuit's TabManagerService off-thread.
+    private Task OnRequestSavedByOther(int requestId, string savedByUserId, string savedByUserName)
+        => InvokeAsync(() =>
+        {
+            if (requestId == Active?.RequestId && savedByUserId != _currentUserId)
             {
                 _reloadToast = $"{savedByUserName} vient de sauvegarder cette requête.";
                 StateHasChanged();
-            });
-    }
+            }
+        });
 
     // ── Send ──────────────────────────────────────────────────────────────────
 
