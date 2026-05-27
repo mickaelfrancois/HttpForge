@@ -51,6 +51,7 @@ public class RequestSaveService(
         dbItem.BodyKind = draft.BodyKind;
         dbItem.BodyContent = draft.BodyContent;
         dbItem.PostScript = draft.PostScript;
+        dbItem.IgnoreTlsErrors = draft.IgnoreTlsErrors;
         dbItem.UpdatedAt = DateTime.UtcNow;
         dbItem.UpdatedByUserId = currentUserId;
 

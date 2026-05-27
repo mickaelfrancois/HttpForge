@@ -119,6 +119,21 @@ public class RequestSaveServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SaveAsync_PersistsIgnoreTlsErrors()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 13, 0, 0, DateTimeKind.Utc));
+        draft.IgnoreTlsErrors = true;
+
+        var result = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+        Assert.False(result.IsConflict);
+
+        await using var db = await _factory.CreateDbContextAsync();
+        var saved = await db.Requests.FirstAsync(r => r.Id == _requestId);
+        Assert.True(saved.IgnoreTlsErrors);
+    }
+
+    [Fact]
     public async Task SaveAsync_ReplacesChildCollections()
     {
         // Seed the request with 2 headers
