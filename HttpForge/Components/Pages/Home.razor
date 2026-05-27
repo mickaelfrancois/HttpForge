@@ -64,9 +64,14 @@ else
                            Placeholder="https://api.example.com/path"
                            Title="@Tooltip(tab.Draft.Url)"
                            EnvVariables="_resolvedVariables" />
-            <button class="send-btn" @onclick="SendAsync" disabled="@tab.IsSending">
-                @(tab.IsSending ? "Sending…" : "Send")
-            </button>
+            @if (tab.IsSending)
+            {
+                <button class="cancel-btn" @onclick="CancelSend">Cancel</button>
+            }
+            else
+            {
+                <button class="send-btn" @onclick="SendAsync">Send</button>
+            }
             @if (!State.IsReadOnly && tab.Draft.IsDirty)
             {
                 <button class="save-btn" @onclick="() => SaveDraftAsync(false)">Save</button>
@@ -816,6 +821,8 @@ else
         var activeGlobalEnvId = (_globalSubset ?? _globalBase)?.Id;
         var isReadOnly = State.IsReadOnly;
 
+        var cts = new CancellationTokenSource();
+        tab.SendCts = cts;
         tab.IsSending = true;
         tab.Result = null;
         tab.ScriptResult = null;
@@ -823,7 +830,7 @@ else
 
         try
         {
-            var result = await Executor.ExecuteAsync(request, vars);
+            var result = await Executor.ExecuteAsync(request, vars, cts.Token);
             tab.Result = result;
 
             if (result.Error is null && !string.IsNullOrWhiteSpace(request.PostScript))
@@ -841,11 +848,22 @@ else
                     ApplyScriptMutationsToMemory(scriptResult);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // User cancelled — leave the response pane cleared (tab.Result stays null).
+        }
         finally
         {
             tab.IsSending = false;
+            cts.Dispose();
+            tab.SendCts = null;
             StateHasChanged();
         }
+    }
+
+    private void CancelSend()
+    {
+        Active?.SendCts?.Cancel();
     }
 
     private void ApplyScriptMutationsToMemory(ScriptResult result)

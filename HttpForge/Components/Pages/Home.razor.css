@@ -104,6 +104,20 @@
     cursor: not-allowed;
 }
 
+.cancel-btn {
+    background: var(--error-text);
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 0.45rem 1.5rem;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.cancel-btn:hover {
+    opacity: 0.9;
+}
+
 .save-btn {
     background: transparent;
     color: var(--text-muted);
