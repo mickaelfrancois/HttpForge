@@ -73,4 +73,29 @@ public class RequestDraftTests
         Assert.NotSame(request.Headers, draft.Headers);
         Assert.False(draft.IsDirty);
     }
+
+    [Fact]
+    public void IgnoreTlsErrors_DefaultsFalse()
+    {
+        var draft = MakeDraft();
+        Assert.False(draft.IgnoreTlsErrors);
+    }
+
+    [Fact]
+    public void FromRequest_CopiesIgnoreTlsErrors()
+    {
+        var request = new HttpRequestItem
+        {
+            Id = 1,
+            Name = "Test",
+            Method = HttpMethodKind.GET,
+            Url = "https://example.com",
+            BodyKind = BodyKind.None,
+            IgnoreTlsErrors = true
+        };
+
+        var draft = RequestDraft.FromRequest(request, DateTime.UtcNow);
+
+        Assert.True(draft.IgnoreTlsErrors);
+    }
 }
