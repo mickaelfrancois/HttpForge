@@ -31,14 +31,15 @@ The app starts at `http://localhost:5000`. The database (`httpforge.db`) is crea
 
 ## Docker Deployment
 
-### Build and run with Docker Compose
+### Run with Docker Compose (pre-built image)
 
-Create a `docker-compose.yml` at the root of the project:
+Create a `docker-compose.yml` on your server with the following content:
 
 ```yaml
 services:
   httpforge:
-    build: .
+    image: vladdfpc/httpforge:latest
+    container_name: httpforge
     ports:
       - "8080:8080"
     environment:
@@ -51,7 +52,7 @@ volumes:
   httpforge-data:
 ```
 
-Then:
+Then start the container:
 
 ```bash
 docker compose up -d
@@ -64,11 +65,36 @@ The `HTTPFORGE_DATA` environment variable controls where the database is stored 
 ### Update to a new version
 
 ```bash
-docker compose pull   # if using a pre-built image
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Your data is preserved in the named volume.
+
+### Build and run from source
+
+If you prefer to build the image yourself, replace the `image:` line with a `build:` directive:
+
+```yaml
+services:
+  httpforge:
+    build: .
+    container_name: httpforge
+    ports:
+      - "8080:8080"
+    environment:
+      - HTTPFORGE_DATA=/data
+    volumes:
+      - httpforge-data:/data
+    restart: unless-stopped
+
+volumes:
+  httpforge-data:
+```
+
+```bash
+docker compose up -d --build
+```
 
 ### Behind a reverse proxy
 

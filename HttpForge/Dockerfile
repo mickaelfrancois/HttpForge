@@ -2,10 +2,11 @@
 
 # Cet index est utilisé lors de l’exécution à partir de VS en mode rapide (par défaut pour la configuration de débogage)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
+RUN mkdir -p /data && chown $APP_UID /data
+USER $APP_UID
 
 
 # Cette phase est utilisée pour générer le projet de service
