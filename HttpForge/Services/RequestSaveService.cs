@@ -11,7 +11,7 @@ public class RequestSaveService(
     RequestChangeNotifier notifier,
     UserManager<AppUser> userManager)
 {
-    public record SaveResult(bool IsConflict, string? ConflictByUserName = null, DateTime? ConflictAt = null);
+    public record SaveResult(bool IsConflict, string? ConflictByUserName = null, DateTime? ConflictAt = null, DateTime? SavedAt = null);
 
     public static bool HasConflict(DateTime dbUpdatedAt, DateTime draftLoadedAt) =>
         dbUpdatedAt > draftLoadedAt;
@@ -72,6 +72,9 @@ public class RequestSaveService(
         await db.SaveChangesAsync();
         await notifier.NotifyAsync(draft.RequestId, currentUserId, currentUserName);
 
-        return new SaveResult(IsConflict: false);
+        // Return the timestamp we just wrote so the caller can rebase its draft's
+        // LoadedAt onto this version. Without that, a second consecutive save by the
+        // same user would see dbItem.UpdatedAt > draft.LoadedAt and falsely conflict.
+        return new SaveResult(IsConflict: false, SavedAt: dbItem.UpdatedAt);
     }
 }

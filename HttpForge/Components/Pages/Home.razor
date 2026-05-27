@@ -333,8 +333,8 @@ else
 
     @if (_showConflictModal)
     {
-        <div class="modal-backdrop">
-            <div class="modal">
+        <div class="hf-modal-backdrop">
+            <div class="hf-modal">
                 <p><strong>Cette requête a été modifiée par @_conflictByUserName à @_conflictAt?.ToString("HH:mm:ss")</strong></p>
                 <p>Voulez-vous écraser leurs modifications ou annuler ?</p>
                 <button class="btn-danger" @onclick="OnSaveOverwriteAsync">Écraser leurs modifications</button>
@@ -345,8 +345,8 @@ else
 
     @if (_showUnsavedModal)
     {
-        <div class="modal-backdrop">
-            <div class="modal">
+        <div class="hf-modal-backdrop">
+            <div class="hf-modal">
                 <p><strong>Modifications non sauvegardées</strong></p>
                 <p>Cet onglet contient des modifications non sauvegardées.</p>
                 <button @onclick="SaveAndCloseAsync">Sauvegarder et fermer</button>
@@ -698,6 +698,9 @@ else
             return;
         }
 
+        // Rebase the draft onto the version we just wrote so the next save doesn't
+        // falsely conflict with this one.
+        if (result.SavedAt is DateTime savedAt) tab.Draft.LoadedAt = savedAt;
         tab.Draft.ClearDirty();
         await LoadActiveTabContextAsync();
     }

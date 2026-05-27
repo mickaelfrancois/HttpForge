@@ -265,3 +265,27 @@ h1:focus {
 .tls-toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; }
 .tls-toggle input { width: 1rem; height: 1rem; cursor: pointer; accent-color: var(--accent-blue); }
 .options-hint { font-size: 0.8rem; color: var(--text-muted); max-width: 52ch; line-height: 1.4; }
+
+/* App modals — dedicated classes; do NOT reuse Bootstrap's .modal/.modal-backdrop,
+   which render as a full-screen opaque-black overlay with display:none content. */
+.hf-modal-backdrop {
+    position: fixed; inset: 0; z-index: 1050;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+}
+.hf-modal {
+    background: var(--bg-surface); color: var(--text-primary);
+    border: 1px solid var(--border-main); border-radius: 8px;
+    padding: 1.25rem 1.5rem; max-width: 28rem; width: calc(100% - 2rem);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    display: flex; flex-direction: column; gap: 0.5rem;
+}
+.hf-modal p { margin: 0 0 0.25rem; }
+.hf-modal button {
+    align-self: flex-start; margin-top: 0.5rem;
+    padding: 0.4rem 0.9rem; font-family: inherit; font-size: 0.9rem;
+    border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border-main);
+    background: var(--bg-btn-hover); color: var(--text-primary);
+}
+.hf-modal button:hover { background: var(--border-input); }

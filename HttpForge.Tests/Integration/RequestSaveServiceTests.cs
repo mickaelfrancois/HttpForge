@@ -76,6 +76,36 @@ public class RequestSaveServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SaveAsync_NoConflict_ReturnsSavedAt()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 13, 0, 0, DateTimeKind.Utc));
+
+        var result = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+
+        Assert.False(result.IsConflict);
+        Assert.NotNull(result.SavedAt);
+    }
+
+    [Fact]
+    public async Task SaveAsync_SecondConsecutiveSave_SameUser_NoConflict()
+    {
+        var svc = new RequestSaveService(_factory, _notifier, _userManager);
+        var draft = MakeDraft(new DateTime(2026, 1, 1, 13, 0, 0, DateTimeKind.Utc));
+
+        var first = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+        Assert.False(first.IsConflict);
+
+        // The UI rebases the draft onto the version it just wrote. Without SavedAt
+        // being returned and applied here, the second save would falsely conflict
+        // because the DB's UpdatedAt now sits after the draft's original LoadedAt.
+        draft.LoadedAt = first.SavedAt!.Value;
+
+        var second = await svc.SaveAsync(draft, "user-1", "Alice", forceOverwrite: false);
+        Assert.False(second.IsConflict);
+    }
+
+    [Fact]
     public async Task SaveAsync_Conflict_DbNotModified()
     {
         var svc = new RequestSaveService(_factory, _notifier, _userManager);

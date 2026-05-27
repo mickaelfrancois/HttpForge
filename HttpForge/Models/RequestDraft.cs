@@ -5,7 +5,10 @@ namespace HttpForge.Models;
 public class RequestDraft
 {
     public int RequestId { get; init; }
-    public DateTime LoadedAt { get; init; }
+    // Settable so a successful save can rebase the draft onto the version it just
+    // wrote (see RequestSaveService.SaveResult.SavedAt); otherwise the next save by
+    // the same user falsely conflicts with their own previous save.
+    public DateTime LoadedAt { get; set; }
     public string Name { get; set; } = string.Empty;
     public HttpMethodKind Method { get; set; }
     public string Url { get; set; } = string.Empty;
