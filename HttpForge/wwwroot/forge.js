@@ -221,19 +221,27 @@ window.forge.viewer = {
             readOnly: true,
             lineWrapping: false
         });
-        this._instances.set(el, cm);
+        // Keep the viewer sized to its (flex) container and adapt to window/sidebar resizing.
+        let raf = 0;
+        const ro = new ResizeObserver(() => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => cm.refresh());
+        });
+        ro.observe(el);
+        this._instances.set(el, { cm, ro });
     },
 
     setValue(el, value) {
-        const cm = this._instances.get(el);
-        if (cm) cm.setValue(value || '');
+        const inst = this._instances.get(el);
+        if (inst) inst.cm.setValue(value || '');
     },
 
     dispose(el) {
-        const cm = this._instances.get(el);
-        if (!cm) return;
+        const inst = this._instances.get(el);
+        if (!inst) return;
         this._instances.delete(el);
-        cm.getWrapperElement().remove();
+        inst.ro.disconnect();
+        inst.cm.getWrapperElement().remove();
     }
 };
 

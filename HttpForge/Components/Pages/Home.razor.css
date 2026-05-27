@@ -15,7 +15,8 @@
 .editor {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -222,6 +223,7 @@
 
 .response-pane {
     flex: 1;
+    min-height: 0;
     border-top: 1px solid var(--border-main);
     background: var(--bg-surface);
     display: flex;
@@ -265,6 +267,7 @@
 
 .response-body {
     flex: 1;
+    min-height: 0;
     overflow: auto;
     padding: 0.5rem 1rem 1rem;
 }
