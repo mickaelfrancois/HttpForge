@@ -282,4 +282,33 @@ public class RequestExecutorTests
         Assert.Equal(0, result.StatusCode);
         Assert.NotNull(result.Error);
     }
+
+    // ── TLS certificate validation ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_SelfSignedHttps_WithoutBypass_ReturnsError()
+    {
+        using var server = new SelfSignedHttpsServer();
+        var sut = new RequestExecutor(new VariableResolver()); // real handler, no fake
+        var req = new HttpRequestItem { Url = server.Url, IgnoreTlsErrors = false };
+
+        var result = await sut.ExecuteAsync(req, NoVars);
+
+        Assert.Equal(0, result.StatusCode);
+        Assert.NotNull(result.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SelfSignedHttps_WithBypass_Succeeds()
+    {
+        using var server = new SelfSignedHttpsServer();
+        var sut = new RequestExecutor(new VariableResolver()); // real handler, no fake
+        var req = new HttpRequestItem { Url = server.Url, IgnoreTlsErrors = true };
+
+        var result = await sut.ExecuteAsync(req, NoVars);
+
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal("OK", result.Body);
+        Assert.Null(result.Error);
+    }
 }

@@ -71,7 +71,7 @@ public class RequestExecutor
                 }
             }
 
-            var (handler, ownsHandler) = CreateHandler(probe);
+            var (handler, ownsHandler) = CreateHandler(probe, request.IgnoreTlsErrors);
             using var client = new HttpClient(handler, disposeHandler: ownsHandler);
             client.Timeout = TimeSpan.FromMinutes(2);
 
@@ -119,7 +119,7 @@ public class RequestExecutor
         }
     }
 
-    private (HttpMessageHandler handler, bool owns) CreateHandler(ConnectionProbe probe)
+    private (HttpMessageHandler handler, bool owns) CreateHandler(ConnectionProbe probe, bool ignoreTlsErrors)
     {
         if (_handlerFactory is not null)
             return (_handlerFactory(), false);
@@ -128,7 +128,7 @@ public class RequestExecutor
         {
             AllowAutoRedirect = true,
             UseCookies = false,
-            ConnectCallback = (ctx, ct) => ConnectAsync(ctx, probe, ct)
+            ConnectCallback = (ctx, ct) => ConnectAsync(ctx, probe, ignoreTlsErrors, ct)
         };
         return (handler, true);
     }
@@ -138,7 +138,7 @@ public class RequestExecutor
     // SslStream; SocketsHttpHandler (since .NET 7) detects this and does not
     // layer a second TLS session on top.
     private static async ValueTask<Stream> ConnectAsync(
-        SocketsHttpConnectionContext ctx, ConnectionProbe probe, CancellationToken ct)
+        SocketsHttpConnectionContext ctx, ConnectionProbe probe, bool ignoreTlsErrors, CancellationToken ct)
     {
         var ep = ctx.DnsEndPoint;
         var isHttps = string.Equals(
@@ -162,12 +162,16 @@ public class RequestExecutor
             if (isHttps)
             {
                 var ssl = new SslStream(stream, leaveInnerStreamOpen: false);
-                var swTls = Stopwatch.StartNew();
-                await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+                var sslOptions = new SslClientAuthenticationOptions
                 {
                     TargetHost = ep.Host,
                     ApplicationProtocols = [SslApplicationProtocol.Http11]
-                }, ct);
+                };
+                if (ignoreTlsErrors)
+                    sslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+
+                var swTls = Stopwatch.StartNew();
+                await ssl.AuthenticateAsClientAsync(sslOptions, ct);
                 swTls.Stop();
 
                 tlsMs = swTls.ElapsedMilliseconds;
