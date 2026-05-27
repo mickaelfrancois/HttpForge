@@ -1,8 +1,8 @@
 .tab-bar {
     display: flex;
     align-items: flex-end;
-    background: #0f0f1c;
-    border-bottom: 1px solid #1c1c30;
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-main);
     overflow-x: auto;
     overflow-y: visible;
     scrollbar-width: none;
@@ -31,22 +31,22 @@
     transition: background 0.15s;
     position: relative;
     top: 1px;
-    color: #555;
+    color: var(--text-muted);
     flex-shrink: 0;
 }
 
-.tab:hover { background: #161625; color: #999; }
+.tab:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .tab.active {
-    background: #0d0d1a;
-    border-color: #1c1c30;
-    color: #c9d1d9;
+    background: var(--bg-main);
+    border-color: var(--border-main);
+    color: var(--text-primary);
     box-shadow: 0 -2px 0 0 #7c6fff inset;
 }
 
-.tab.active.dirty { box-shadow: 0 -2px 0 0 #e5c07b inset; }
+.tab.active.dirty { box-shadow: 0 -2px 0 0 var(--accent-orange) inset; }
 
-.tab-dirty { color: #e5c07b; font-weight: 600; font-size: 11px; }
+.tab-dirty { color: var(--accent-orange); font-weight: 600; font-size: 11px; }
 
 .tab-name {
     max-width: 120px;
@@ -67,9 +67,9 @@
 }
 
 .tab:hover .tab-close,
-.tab.active .tab-close { color: #555; }
+.tab.active .tab-close { color: var(--text-muted); }
 
-.tab .tab-close:hover { background: #2a2a40 !important; color: #aaa !important; }
+.tab .tab-close:hover { background: var(--bg-btn-hover) !important; color: var(--text-primary) !important; }
 
 /* Method badges */
 .method-badge {
@@ -80,13 +80,13 @@
     flex-shrink: 0;
     letter-spacing: .03em;
 }
-.method-get     { color: #3fb950; background: rgba(63,185,80,.12); }
-.method-post    { color: #58a6ff; background: rgba(88,166,255,.12); }
-.method-put     { color: #d29922; background: rgba(210,153,34,.12); }
-.method-delete  { color: #f85149; background: rgba(248,81,73,.12); }
-.method-patch   { color: #bc8cff; background: rgba(188,140,255,.12); }
+.method-get     { color: var(--method-get);    background: color-mix(in srgb, var(--method-get) 12%, transparent); }
+.method-post    { color: var(--method-post);   background: color-mix(in srgb, var(--method-post) 12%, transparent); }
+.method-put     { color: var(--method-put);    background: color-mix(in srgb, var(--method-put) 12%, transparent); }
+.method-delete  { color: var(--method-delete); background: color-mix(in srgb, var(--method-delete) 12%, transparent); }
+.method-patch   { color: var(--method-patch);  background: color-mix(in srgb, var(--method-patch) 12%, transparent); }
 .method-head,
-.method-options { color: #8b949e; background: rgba(139,148,158,.12); }
+.method-options { color: var(--method-other);  background: color-mix(in srgb, var(--method-other) 12%, transparent); }
 
 /* Context menu */
 .ctx-overlay {
@@ -97,11 +97,11 @@
 
 .ctx-menu {
     position: fixed;
-    background: #161625;
-    border: 1px solid #2a2a40;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-input);
     border-radius: 6px;
     padding: 4px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
     z-index: 100;
     min-width: 185px;
 }
@@ -111,14 +111,14 @@
     font-size: 11px;
     border-radius: 4px;
     cursor: pointer;
-    color: #aaa;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.ctx-item:hover        { background: #1e1e35; }
-.ctx-item.danger       { color: #f85149; }
-.ctx-item.danger:hover { background: #2a1515; }
+.ctx-item:hover        { background: var(--bg-hover); color: var(--text-primary); }
+.ctx-item.danger       { color: var(--error-text); }
+.ctx-item.danger:hover { background: var(--error-bg); color: var(--error-text); }
 
-.ctx-divider { height: 1px; background: #1c1c30; margin: 3px 0; }
+.ctx-divider { height: 1px; background: var(--border-main); margin: 3px 0; }
