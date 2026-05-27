@@ -112,6 +112,10 @@ public class RequestExecutor
                 null,
                 timing);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             sw.Stop();

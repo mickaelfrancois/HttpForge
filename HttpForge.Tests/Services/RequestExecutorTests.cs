@@ -311,4 +311,18 @@ public class RequestExecutorTests
         Assert.Equal("OK", result.Body);
         Assert.Null(result.Error);
     }
+
+    // ── Cancellation ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_CancelledToken_ThrowsOperationCanceled()
+    {
+        var (sut, _) = Create();
+        var req = new HttpRequestItem { Url = "https://example.com" };
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ExecuteAsync(req, NoVars, cts.Token));
+    }
 }
