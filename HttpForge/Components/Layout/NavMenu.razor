@@ -657,6 +657,7 @@
         int totalRequests = 0;
         int totalFolders = 0;
         var errors = new List<string>();
+        var warnings = new List<string>();
 
         foreach (var file in e.GetMultipleFiles(maximumFileCount: 20))
         {
@@ -671,7 +672,7 @@
                     totalFolders += result.FoldersCreated;
                 }
                 foreach (var w in result.Warnings)
-                    Console.WriteLine($"[Insomnia import] {file.Name}: {w}");
+                    warnings.Add($"{file.Name}: {w}");
             }
             catch (Exception ex)
             {
@@ -679,9 +680,14 @@
             }
         }
 
-        _importStatus = errors.Count > 0
-            ? $"Import error: {string.Join("; ", errors)}"
-            : $"Imported: {totalCollections} collection(s), {totalFolders} folder(s), {totalRequests} request(s)";
+        if (errors.Count > 0)
+            _importStatus = $"Import error: {string.Join("; ", errors)}";
+        else
+        {
+            _importStatus = $"Imported: {totalCollections} collection(s), {totalFolders} folder(s), {totalRequests} request(s)";
+            if (warnings.Count > 0)
+                _importStatus += $" — ⚠ {string.Join("; ", warnings)}";
+        }
 
         await ReloadAsync();
         State.NotifyChanged();

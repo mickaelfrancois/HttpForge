@@ -240,7 +240,13 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         }
 
         if (!string.IsNullOrWhiteSpace(node.AfterResponseScript))
+        {
             req.PostScript = node.AfterResponseScript;
+            // Imported scripts are untrusted: they must not auto-execute. The user has to
+            // review and enable them in the Scripts tab before they will run.
+            req.PostScriptTrusted = false;
+            warnings.Add($"Request '{node.Name}': contains a post-request script — disabled until you review and enable it in the Scripts tab");
+        }
 
         return req;
     }

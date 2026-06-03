@@ -11,7 +11,10 @@ namespace HttpForge.Services;
 public record TabStorageState(int RequestId, string ActiveSubTab);
 public record TabStorageData(TabStorageState[] Tabs, int? ActiveRequestId);
 
-public class TabManagerService(IDbContextFactory<AppDbContext> dbFactory, AppState appState)
+public class TabManagerService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    AppState appState,
+    PermissionService permissions)
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
     private readonly List<TabState> _tabs = [];
@@ -108,6 +111,13 @@ public class TabManagerService(IDbContextFactory<AppDbContext> dbFactory, AppSta
             .Include(r => r.Variables)
             .FirstOrDefaultAsync(r => r.Id == requestId);
         if (request is null) return;
+
+        // Authorization gate: a request id can reach this method from client-controlled
+        // tab state restored out of localStorage (forge.tabs.load), not only from the
+        // already-authorized sidebar. Verify the user has access to the request's
+        // collection here — never trust the id alone.
+        if (await permissions.GetRoleForCollectionAsync(userId, request.CollectionId) is null)
+            return;
 
         var userVarValues = !string.IsNullOrEmpty(userId)
             ? await db.UserVariableValues

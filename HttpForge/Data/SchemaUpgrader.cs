@@ -15,6 +15,7 @@ public static class SchemaUpgrader
     public static void Apply(AppDbContext db)
     {
         EnsureColumn(db, "Requests", "PostScript", "TEXT NULL");
+        EnsureColumn(db, "Requests", "PostScriptTrusted", "INTEGER NOT NULL DEFAULT 1");
         EnsureColumn(db, "Requests", "IgnoreTlsErrors", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(db, "EnvironmentVariables", "IsSecret", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(db, "Environments", "IsBase", "INTEGER NOT NULL DEFAULT 0");

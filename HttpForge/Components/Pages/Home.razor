@@ -199,6 +199,15 @@ else
                 case "Scripts":
                     <div class="scripts-tab">
                         <div class="script-section-label">Post-request script</div>
+                        @if (!tab.Draft.PostScriptTrusted && !string.IsNullOrWhiteSpace(tab.Draft.PostScript))
+                        {
+                            <div class="script-untrusted-warning">
+                                <span>⚠ Ce script a été importé et est <strong>désactivé</strong> pour des raisons de sécurité. Vérifiez son contenu ci-dessous, puis activez-le si vous lui faites confiance.</span>
+                                <button class="btn-enable-script"
+                                        disabled="@State.IsReadOnly"
+                                        @onclick="EnableScriptAsync">Activer le script</button>
+                            </div>
+                        }
                         <ScriptEditor Value="@tab.Draft.PostScript"
                                       ValueChanged="OnPostScriptChanged" />
                         <div class="script-hint">
@@ -564,7 +573,20 @@ else
     {
         if (Active is null || State.IsReadOnly) return;
         Active.Draft.PostScript = value;
+        // Editing the script in the editor is an explicit authoring/review action, so the
+        // script becomes trusted and may execute on the next send.
+        Active.Draft.PostScriptTrusted = true;
         Active.Draft.MarkDirty();
+    }
+
+    private async Task EnableScriptAsync()
+    {
+        if (Active is null || State.IsReadOnly) return;
+        Active.Draft.PostScriptTrusted = true;
+        Active.Draft.MarkDirty();
+        // Persist immediately; SaveDraftAsync reloads _request so the next send sees the
+        // script as trusted and runs it.
+        await SaveDraftAsync(forceOverwrite: false);
     }
 
     private void OnBodyKindChanged(BodyKind kind)
@@ -838,17 +860,29 @@ else
 
             if (result.Error is null && !string.IsNullOrWhiteSpace(request.PostScript))
             {
-                var scriptResult = await ScriptRunner.RunPostScriptAsync(
-                    request,
-                    result,
-                    activeCollectionSetId,
-                    activeGlobalEnvId,
-                    _resolvedVariables);
+                if (!request.PostScriptTrusted)
+                {
+                    // Untrusted (imported) script: do not execute. Surface a notice so the
+                    // user knows it was skipped and how to enable it after reviewing.
+                    tab.ScriptResult = new ScriptResult(
+                        new ScriptMutations([], [], []),
+                        [],
+                        "Le script importé est désactivé. Ouvrez l'onglet Scripts, vérifiez son contenu puis cliquez sur « Activer le script » pour l'exécuter.");
+                }
+                else
+                {
+                    var scriptResult = await ScriptRunner.RunPostScriptAsync(
+                        request,
+                        result,
+                        activeCollectionSetId,
+                        activeGlobalEnvId,
+                        _resolvedVariables);
 
-                tab.ScriptResult = scriptResult;
+                    tab.ScriptResult = scriptResult;
 
-                if (scriptResult is not null && !isReadOnly && ReferenceEquals(Active, tab))
-                    ApplyScriptMutationsToMemory(scriptResult);
+                    if (scriptResult is not null && !isReadOnly && ReferenceEquals(Active, tab))
+                        ApplyScriptMutationsToMemory(scriptResult);
+                }
             }
         }
         catch (OperationCanceledException)

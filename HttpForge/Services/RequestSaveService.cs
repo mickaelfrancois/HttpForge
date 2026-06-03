@@ -9,7 +9,8 @@ namespace HttpForge.Services;
 public class RequestSaveService(
     IDbContextFactory<AppDbContext> dbFactory,
     RequestChangeNotifier notifier,
-    UserManager<AppUser> userManager)
+    UserManager<AppUser> userManager,
+    PermissionService permissions)
 {
     public record SaveResult(bool IsConflict, string? ConflictByUserName = null, DateTime? ConflictAt = null, DateTime? SavedAt = null);
 
@@ -34,6 +35,12 @@ public class RequestSaveService(
         if (dbItem is null)
             return new SaveResult(IsConflict: false);
 
+        // Defense-in-depth: the UI already blocks saves on read-only requests, but the
+        // write path must not trust UI flags alone. Re-verify server-side that this user
+        // may write to the request's collection before persisting any mutation.
+        if (await permissions.IsReadOnlyAsync(currentUserId, dbItem.CollectionId))
+            return new SaveResult(IsConflict: false);
+
         if (!forceOverwrite && HasConflict(dbItem.UpdatedAt, draft.LoadedAt))
         {
             string conflictName = "Unknown";
@@ -51,6 +58,7 @@ public class RequestSaveService(
         dbItem.BodyKind = draft.BodyKind;
         dbItem.BodyContent = draft.BodyContent;
         dbItem.PostScript = draft.PostScript;
+        dbItem.PostScriptTrusted = draft.PostScriptTrusted;
         dbItem.IgnoreTlsErrors = draft.IgnoreTlsErrors;
         dbItem.UpdatedAt = DateTime.UtcNow;
         dbItem.UpdatedByUserId = currentUserId;

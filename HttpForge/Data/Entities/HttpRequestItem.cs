@@ -20,6 +20,13 @@ public class HttpRequestItem
     public string? BodyContent { get; set; }
     public string? PostScript { get; set; }
 
+    // Whether the post-request script is allowed to execute. User-authored scripts are
+    // trusted (default true). Scripts brought in by an import (e.g. Insomnia
+    // afterResponseScript) arrive untrusted and must be explicitly reviewed/enabled by
+    // the user before they run — otherwise a shared collection could silently execute
+    // attacker code with the importer's privileges.
+    public bool PostScriptTrusted { get; set; } = true;
+
     public bool IgnoreTlsErrors { get; set; }
 
     public List<HeaderItem> Headers { get; set; } = new();

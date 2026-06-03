@@ -15,6 +15,7 @@ public class RequestDraft
     public BodyKind BodyKind { get; set; }
     public string? BodyContent { get; set; }
     public string? PostScript { get; set; }
+    public bool PostScriptTrusted { get; set; } = true;
     public bool IgnoreTlsErrors { get; set; }
     public List<HeaderItem> Headers { get; set; } = [];
     public List<QueryParamItem> QueryParams { get; set; } = [];
@@ -35,6 +36,7 @@ public class RequestDraft
         BodyKind = r.BodyKind,
         BodyContent = r.BodyContent,
         PostScript = r.PostScript,
+        PostScriptTrusted = r.PostScriptTrusted,
         IgnoreTlsErrors = r.IgnoreTlsErrors,
         Headers = r.Headers.ToList(),
         QueryParams = r.QueryParams.ToList(),
