@@ -663,7 +663,7 @@
             try
             {
                 using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-                var result = await Importer.ImportFileAsync(stream, file.Name);
+                var result = await Importer.ImportFileAsync(stream, file.Name, State.ActiveTeamId);
                 if (result.RequestsCreated > 0 || result.FoldersCreated > 0)
                 {
                     totalCollections++;
