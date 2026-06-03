@@ -28,6 +28,10 @@
     @if (_showEnvEditor)
     {
         <div class="env-editor">
+            <div class="env-editor-header" title="Fermer le panneau" @onclick="ToggleEnvEditor">
+                <span>Variables globales</span>
+                <span class="close-x">✕</span>
+            </div>
             @if (_globalBase is not null)
             {
                 <div class="var-list">
@@ -210,6 +214,10 @@
                 var activeSet = c.VariableSets.FirstOrDefault(s => s.Id == c.ActiveCollectionVariableSetId && !s.IsBase);
 
                 <div class="env-editor">
+                    <div class="env-editor-header" title="Fermer le panneau" @onclick="() => ToggleCollVarEditor(c.Id)">
+                        <span>Variables de collection</span>
+                        <span class="close-x">✕</span>
+                    </div>
                     <div class="var-list">
                         <div class="var-list-header"><span>Base</span></div>
                         @foreach (var v in cBase?.Entries ?? [])
