@@ -55,6 +55,34 @@
     padding: 0.5rem;
 }
 
+.env-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: -0.5rem -0.5rem 0.4rem -0.5rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-main);
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.env-editor-header:hover {
+    background: var(--bg-hover);
+}
+
+.env-editor-header .close-x {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+.env-editor-header:hover .close-x {
+    color: var(--text-primary);
+}
+
 .env-actions {
     display: flex;
     gap: 0.3rem;
