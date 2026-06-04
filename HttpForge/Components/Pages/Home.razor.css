@@ -488,10 +488,13 @@
 }
 
 .script-result {
-    border-top: 1px solid var(--border-main);
     padding: 8px 12px;
     font-size: 12px;
 }
+
+.script-tab-icon { font-weight: 700; margin-right: 4px; }
+.script-tab-icon--ok { color: var(--status-2xx-text); }
+.script-tab-icon--error { color: var(--error-text); }
 
 .script-result--ok .script-result-header { color: var(--status-2xx-text); }
 .script-result--error .script-result-header { color: var(--error-text); font-weight: 600; }

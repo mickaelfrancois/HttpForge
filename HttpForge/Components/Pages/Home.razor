@@ -260,6 +260,15 @@ else
                     {
                         <button class="tab @(tab.ActiveResponseTab == "Timing" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Timing")">Timing</button>
                     }
+                    @if (tab.ScriptResult is not null)
+                    {
+                        <button class="tab @(tab.ActiveResponseTab == "Script" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Script")">
+                            <span class="script-tab-icon @(tab.ScriptResult.Error is null ? "script-tab-icon--ok" : "script-tab-icon--error")">
+                                @(tab.ScriptResult.Error is null ? "✓" : "✗")
+                            </span>
+                            Script
+                        </button>
+                    }
                 </div>
                 <div class="response-body">
                     @if (tab.ActiveResponseTab == "Timing" && tab.Result.Timing is { } tm)
@@ -296,49 +305,56 @@ else
                             }
                         </table>
                     }
+                    else if (tab.ActiveResponseTab == "Script" && tab.ScriptResult is { } sr)
+                    {
+                        <div class="script-result @(sr.Error is null ? "script-result--ok" : "script-result--error")">
+                            <div class="script-result-header">
+                                @if (sr.Error is null)
+                                {
+                                    <span>&#10003; Post-request script</span>
+                                }
+                                else
+                                {
+                                    <span>&#10007; Script error: @sr.Error</span>
+                                }
+                            </div>
+                            @if (sr.Mutations.Request.Count > 0 ||
+                                 sr.Mutations.Collection.Count > 0 ||
+                                 sr.Mutations.Global.Count > 0)
+                            {
+                                <ul class="script-mutations">
+                                    @foreach (var (k, v) in sr.Mutations.Request)
+                                    {
+                                        <li>request[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
+                                    }
+                                    @foreach (var (k, v) in sr.Mutations.Collection)
+                                    {
+                                        <li>collection[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
+                                    }
+                                    @foreach (var (k, v) in sr.Mutations.Global)
+                                    {
+                                        <li>global[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
+                                    }
+                                </ul>
+                            }
+                            @foreach (var log in sr.Logs)
+                            {
+                                <div class="script-log">&#9656; @log</div>
+                            }
+                            @if (sr.Error is null && sr.Logs.Count == 0 &&
+                                 sr.Mutations.Request.Count == 0 &&
+                                 sr.Mutations.Collection.Count == 0 &&
+                                 sr.Mutations.Global.Count == 0)
+                            {
+                                <div class="empty-hint">Script exécuté sans sortie ni mutation.</div>
+                            }
+                        </div>
+                    }
                     else
                     {
                         <JsonViewer Value="@FormatBody(tab.Result.Body)" />
                     }
                 </div>
-                @if (tab.ScriptResult is not null)
-                {
-                    <div class="script-result @(tab.ScriptResult.Error is null ? "script-result--ok" : "script-result--error")">
-                        <div class="script-result-header">
-                            @if (tab.ScriptResult.Error is null)
-                            {
-                                <span>&#10003; Post-request script</span>
-                            }
-                            else
-                            {
-                                <span>&#10007; Script error: @tab.ScriptResult.Error</span>
-                            }
-                        </div>
-                        @if (tab.ScriptResult.Mutations.Request.Count > 0 ||
-                             tab.ScriptResult.Mutations.Collection.Count > 0 ||
-                             tab.ScriptResult.Mutations.Global.Count > 0)
-                        {
-                            <ul class="script-mutations">
-                                @foreach (var (k, v) in tab.ScriptResult.Mutations.Request)
-                                {
-                                    <li>request[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
-                                }
-                                @foreach (var (k, v) in tab.ScriptResult.Mutations.Collection)
-                                {
-                                    <li>collection[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
-                                }
-                                @foreach (var (k, v) in tab.ScriptResult.Mutations.Global)
-                                {
-                                    <li>global[<b>@k</b>] &#8592; <span class="mutation-val">@Truncate(v, 60)</span></li>
-                                }
-                            </ul>
-                        }
-                        @foreach (var log in tab.ScriptResult.Logs)
-                        {
-                            <div class="script-log">&#9656; @log</div>
-                        }
-                    </div>
-                }
             }
         </div>
     </div>
