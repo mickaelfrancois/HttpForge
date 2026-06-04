@@ -45,7 +45,10 @@ else
         </div>
     }
 
-    <div class="editor">
+    @* Keyed on the Draft *instance*: switching tabs (different draft) or reloading from
+       server (replaced draft) recreates the whole subtree, so CodeMirror editors are
+       re-initialized with the new tab's content instead of silently keeping the old one. *@
+    <div class="editor" @key="tab.Draft">
         <div class="request-name-row">
             <input class="request-name-input" value="@tab.Draft.Name"
                    @oninput="OnNameInput" placeholder="Request name" />
@@ -151,12 +154,12 @@ else
                         @if (tab.Draft.BodyKind == BodyKind.Json)
                         {
                             <JsonBodyEditor Value="@tab.Draft.BodyContent"
-                                            ValueChanged="OnBodyChanged" />
+                                            ValueChanged="@(v => OnBodyChanged(tab, v))" />
                         }
                         else if (tab.Draft.BodyKind == BodyKind.Raw)
                         {
                             <VariableInput Value="@tab.Draft.BodyContent"
-                                           ValueChanged="OnBodyChanged"
+                                           ValueChanged="@(v => OnBodyChanged(tab, v))"
                                            Multiline="true"
                                            CssClass="body-textarea"
                                            Placeholder="raw body"
@@ -209,7 +212,7 @@ else
                             </div>
                         }
                         <ScriptEditor Value="@tab.Draft.PostScript"
-                                      ValueChanged="OnPostScriptChanged" />
+                                      ValueChanged="@(v => OnPostScriptChanged(tab, v))" />
                         <div class="script-hint">
                             Use <code>fg.response.json()</code>, <code>fg.variables.set("key", value)</code>.
                             <code>async/await</code> supported.
@@ -562,21 +565,23 @@ else
         Active.Draft.MarkDirty();
     }
 
-    private void OnBodyChanged(string value)
+    // These two are fed by debounced CodeMirror callbacks that can land *after* a tab
+    // switch — they take the tab they were rendered for instead of reading Active, so a
+    // late callback can never write one tab's content into another tab's draft.
+    private void OnBodyChanged(TabState tab, string value)
     {
-        if (Active is null) return;
-        Active.Draft.BodyContent = value;
-        Active.Draft.MarkDirty();
+        tab.Draft.BodyContent = value;
+        tab.Draft.MarkDirty();
     }
 
-    private void OnPostScriptChanged(string value)
+    private void OnPostScriptChanged(TabState tab, string value)
     {
-        if (Active is null || State.IsReadOnly) return;
-        Active.Draft.PostScript = value;
+        if (tab.IsReadOnly) return;
+        tab.Draft.PostScript = value;
         // Editing the script in the editor is an explicit authoring/review action, so the
         // script becomes trusted and may execute on the next send.
-        Active.Draft.PostScriptTrusted = true;
-        Active.Draft.MarkDirty();
+        tab.Draft.PostScriptTrusted = true;
+        tab.Draft.MarkDirty();
     }
 
     private async Task EnableScriptAsync()

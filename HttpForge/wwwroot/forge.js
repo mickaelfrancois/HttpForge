@@ -182,10 +182,10 @@ window.forge.editor = {
             autofocus: false
         });
         cm.setValue(initialValue || '');
-        let _changeTimer = null;
+        const inst = { cm, changeTimer: null };
         cm.on('change', () => {
-            clearTimeout(_changeTimer);
-            _changeTimer = setTimeout(() => {
+            clearTimeout(inst.changeTimer);
+            inst.changeTimer = setTimeout(() => {
                 dotnetRef.invokeMethodAsync('OnScriptChanged', cm.getValue());
             }, 300);
         });
@@ -194,13 +194,16 @@ window.forge.editor = {
                 dotnetRef.invokeMethodAsync('OnEditorBlur');
             });
         }
-        this._instances.set(textareaEl, cm);
+        this._instances.set(textareaEl, inst);
     },
 
     dispose(textareaEl) {
-        const cm = this._instances.get(textareaEl);
-        if (!cm) return;
-        cm.toTextArea();
+        const inst = this._instances.get(textareaEl);
+        if (!inst) return;
+        // Drop any pending debounced change: the editor is being torn down (e.g. tab
+        // switch) and a late callback must not fire against a disposed .NET reference.
+        clearTimeout(inst.changeTimer);
+        inst.cm.toTextArea();
         this._instances.delete(textareaEl);
     }
 };
