@@ -13,9 +13,10 @@ dotnet build HttpForge
 
 # Watch mode (auto-reload on file change)
 dotnet watch --project HttpForge
-```
 
-There are no automated tests in this project.
+# Run the tests (xUnit)
+dotnet test HttpForge.Tests
+```
 
 ## Architecture
 

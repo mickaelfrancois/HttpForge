@@ -26,6 +26,27 @@ public class RequestDraft
     public void MarkDirty() => IsDirty = true;
     public void ClearDirty() => IsDirty = false;
 
+    // Materializes the editor content as an unsaved HttpRequestItem so Send can use
+    // the draft as-is without persisting it first (Postman-style). Id is preserved so
+    // post-script variable mutations target the right request; CollectionId/FolderId
+    // are not needed for execution.
+    public HttpRequestItem ToTransientRequest() => new()
+    {
+        Id = RequestId,
+        Name = Name,
+        Method = Method,
+        Url = Url,
+        BodyKind = BodyKind,
+        BodyContent = BodyContent,
+        PostScript = PostScript,
+        PostScriptTrusted = PostScriptTrusted,
+        IgnoreTlsErrors = IgnoreTlsErrors,
+        Headers = Headers.ToList(),
+        QueryParams = QueryParams.ToList(),
+        FormFields = FormFields.ToList(),
+        Variables = Variables.ToList()
+    };
+
     public static RequestDraft FromRequest(HttpRequestItem r, DateTime loadedAt) => new()
     {
         RequestId = r.Id,

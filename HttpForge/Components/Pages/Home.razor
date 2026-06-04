@@ -848,18 +848,21 @@ else
     private async Task SendAsync()
     {
         var tab = Active;
-        if (tab is null) return;
+        if (tab is null || _request is null) return;
 
-        if (tab.Draft.IsDirty)
-        {
-            await SaveDraftAsync(forceOverwrite: false);
-            if (_showConflictModal) return;
-        }
+        // Send the editor content as-is (Postman-style): the request is materialized
+        // from the draft without saving it, so the draft stays dirty and the Save
+        // button remains visible after Send.
+        var request = tab.Draft.ToTransientRequest();
 
-        var request = _request;
-        if (request is null) return;
+        // Resolve against the draft's request-level variables (not the saved ones)
+        // so unsaved variable edits apply to this send.
+        var resolvedVariables = State.BuildVariables(
+            _globalBase, _globalSubset, _collectionBase, _collectionSubset,
+            request,
+            tab.UserVarValues);
 
-        var vars = _resolvedVariables.ToDictionary(
+        var vars = resolvedVariables.ToDictionary(
             v => v.Key,
             v => v.Value,
             StringComparer.OrdinalIgnoreCase);
@@ -897,7 +900,7 @@ else
                         result,
                         activeCollectionSetId,
                         activeGlobalEnvId,
-                        _resolvedVariables);
+                        resolvedVariables);
 
                     tab.ScriptResult = scriptResult;
 
@@ -935,6 +938,19 @@ else
             else if (_request is not null)
                 _request.Variables.Add(new RequestVariable
                     { HttpRequestItemId = _request.Id, Key = key, Value = value });
+
+            // Sync the draft too: Send resolves variables from the draft, so a script
+            // mutation must land there to apply on the next send. The value was already
+            // persisted by ScriptRunner, so this does not mark the draft dirty.
+            var draft = Active?.Draft;
+            if (draft is null) continue;
+            var draftVar = draft.Variables.FirstOrDefault(v =>
+                string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (draftVar is not null)
+                draftVar.Value = value;
+            else
+                draft.Variables.Add(new RequestVariable
+                    { HttpRequestItemId = draft.RequestId, Key = key, Value = value });
         }
 
         foreach (var (key, value) in result.Mutations.Collection)

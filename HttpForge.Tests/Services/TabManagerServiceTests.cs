@@ -29,15 +29,25 @@ public class TabManagerServiceTests : IDisposable
     {
         var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
         factory.CreateDbContextAsync(default).Returns(_ => Task.FromResult(new AppDbContext(_opts)));
-        return new TabManagerService(factory, _appState);
+        return new TabManagerService(factory, _appState, new PermissionService(factory));
     }
 
+    // Seeds the collection under a team with "user1" as Contributor so the
+    // PermissionService checks in TabManagerService grant access.
     private async Task<int> SeedRequestAsync(string name = "GET /test")
     {
         await using var db = new AppDbContext(_opts);
-        var col = await db.Collections.FirstOrDefaultAsync()
-            ?? new Collection { Name = "Test" };
-        if (col.Id == 0) { db.Collections.Add(col); await db.SaveChangesAsync(); }
+        var col = await db.Collections.FirstOrDefaultAsync();
+        if (col is null)
+        {
+            var team = new Team { Name = "Test Team" };
+            db.Teams.Add(team);
+            await db.SaveChangesAsync();
+            db.TeamMembers.Add(new TeamMember { TeamId = team.Id, UserId = "user1", Role = TeamRole.Contributor });
+            col = new Collection { Name = "Test", TeamId = team.Id };
+            db.Collections.Add(col);
+            await db.SaveChangesAsync();
+        }
 
         var req = new HttpRequestItem
         {

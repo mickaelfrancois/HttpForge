@@ -75,6 +75,46 @@ public class RequestDraftTests
     }
 
     [Fact]
+    public void ToTransientRequest_CopiesAllFieldsAndKeepsDirty()
+    {
+        var draft = new RequestDraft
+        {
+            RequestId = 7,
+            LoadedAt = DateTime.UtcNow,
+            Name = "Test",
+            Method = HttpMethodKind.POST,
+            Url = "https://api.test/v1",
+            BodyKind = BodyKind.Json,
+            BodyContent = "{\"a\":1}",
+            PostScript = "fg.variables.set('x', '1');",
+            PostScriptTrusted = false,
+            IgnoreTlsErrors = true,
+            Headers = [new HeaderItem { Key = "Authorization", Value = "Bearer token" }],
+            QueryParams = [new QueryParamItem { Key = "q", Value = "1", Enabled = true }],
+            FormFields = [],
+            Variables = [new RequestVariable { Key = "BASE_URL", Value = "https://api.test" }]
+        };
+        draft.MarkDirty();
+
+        var request = draft.ToTransientRequest();
+
+        Assert.Equal(7, request.Id);
+        Assert.Equal("Test", request.Name);
+        Assert.Equal(HttpMethodKind.POST, request.Method);
+        Assert.Equal("https://api.test/v1", request.Url);
+        Assert.Equal(BodyKind.Json, request.BodyKind);
+        Assert.Equal("{\"a\":1}", request.BodyContent);
+        Assert.Equal("fg.variables.set('x', '1');", request.PostScript);
+        Assert.False(request.PostScriptTrusted);
+        Assert.True(request.IgnoreTlsErrors);
+        Assert.Single(request.Headers);
+        Assert.Single(request.QueryParams);
+        Assert.Single(request.Variables);
+        Assert.NotSame(draft.Headers, request.Headers);
+        Assert.True(draft.IsDirty); // materializing must not clear the dirty flag
+    }
+
+    [Fact]
     public void IgnoreTlsErrors_DefaultsFalse()
     {
         var draft = MakeDraft();
