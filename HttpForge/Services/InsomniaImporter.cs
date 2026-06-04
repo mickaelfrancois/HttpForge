@@ -16,6 +16,12 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         """\{\{\s*_(?:\[['"]([^'"]+)['"]\]|\.(?:vault\.)?([A-Za-z0-9_\-]+))\s*\}\}""",
         RegexOptions.Compiled);
 
+    // Whitespace-only lines (spaces/tabs followed by a line break). Insomnia exports
+    // emit these as the first line of "afterResponse: |+" block scalars, and YamlDotNet
+    // rejects them ("found extra spaces in first line") even when the spec allows it.
+    private static readonly Regex BlankLinePattern = new(
+        @"^[ \t]+(?=\r?$)", RegexOptions.Multiline | RegexOptions.Compiled);
+
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .IgnoreUnmatchedProperties()
@@ -37,6 +43,10 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
 
         using var reader = new StreamReader(content);
         var yaml = await reader.ReadToEndAsync();
+
+        // Normalize whitespace-only lines to empty lines so YamlDotNet accepts
+        // block scalars that start with an indented blank line (Insomnia artifact).
+        yaml = BlankLinePattern.Replace(yaml, "");
 
         var file = Deserializer.Deserialize<InsomniaFile>(yaml);
 
