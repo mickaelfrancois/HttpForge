@@ -43,39 +43,39 @@ public class HomeComponentTests : BunitContext
     }
 
     [Fact]
-    public async Task Toast_AppearsWhenOtherUserSaves()
+    public async Task Toast_AppearsWhenAnotherWindowSaves()
     {
         var notifier = new RequestChangeNotifier();
         string? receivedMessage = null;
 
-        async Task Handler(int requestId, string userId, string userName)
+        async Task Handler(int requestId, string originId)
         {
-            if (requestId == 42 && userId != "user-1")
-                receivedMessage = $"{userName} vient de sauvegarder cette requête.";
+            if (requestId == 42 && originId != "this-window")
+                receivedMessage = "Cette requête a été modifiée dans une autre fenêtre.";
             await Task.CompletedTask;
         }
 
         notifier.RequestSaved += Handler;
-        await notifier.NotifyAsync(42, "user-2", "Bob");
+        await notifier.NotifyAsync(42, "other-window");
 
-        Assert.Equal("Bob vient de sauvegarder cette requête.", receivedMessage);
+        Assert.Equal("Cette requête a été modifiée dans une autre fenêtre.", receivedMessage);
     }
 
     [Fact]
-    public async Task Toast_HiddenWhenSameUserSaves()
+    public async Task Toast_HiddenWhenSameWindowSaves()
     {
         var notifier = new RequestChangeNotifier();
         string? receivedMessage = null;
 
-        async Task Handler(int requestId, string userId, string userName)
+        async Task Handler(int requestId, string originId)
         {
-            if (requestId == 42 && userId != "user-1")
-                receivedMessage = $"{userName} vient de sauvegarder cette requête.";
+            if (requestId == 42 && originId != "this-window")
+                receivedMessage = "Cette requête a été modifiée dans une autre fenêtre.";
             await Task.CompletedTask;
         }
 
         notifier.RequestSaved += Handler;
-        await notifier.NotifyAsync(42, "user-1", "Alice");
+        await notifier.NotifyAsync(42, "this-window");
 
         Assert.Null(receivedMessage);
     }

@@ -3,8 +3,6 @@
 @inject AppState State
 @inject IJSRuntime JS
 @inject InsomniaImporter Importer
-@inject PermissionService PermissionService
-@inject AuthenticationStateProvider AuthProvider
 @inject TabManagerService Tabs
 @implements IDisposable
 
@@ -100,17 +98,6 @@
     <span>Collections</span>
 </div>
 
-@if (_availableTeams.Count > 1)
-{
-    <div class="team-switcher">
-        <select value="@(State.ActiveTeamId?.ToString() ?? "")" @onchange="OnTeamChanged">
-            @foreach (var t in _availableTeams)
-            {
-                <option value="@t.Id">@t.Name</option>
-            }
-        </select>
-    </div>
-}
 @if (_importStatus is not null)
 {
     <div class="import-status">@_importStatus</div>
@@ -137,10 +124,7 @@
         ↓
         <InputFile accept=".yaml" multiple OnChange="OnImportFiles" style="display:none" />
     </label>
-    @if (_canCreateCollections)
-    {
-        <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
-    }
+    <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
 </div>
 
 <div class="collection-tree">
@@ -176,24 +160,21 @@
                                     @onclick="() => { ToggleCollVarEditor(c.Id); _openCollectionMenuId = null; }">
                                 <span>⚙</span> Variables de collection
                             </button>
-                            @if (_writableCollectionIds.Contains(c.Id))
-                            {
-                                <button class="context-menu-item"
-                                        @onclick:stopPropagation
-                                        @onclick="() => { StartAddFolder(c.Id); _openCollectionMenuId = null; }">
-                                    <span>📁</span> Nouveau dossier
-                                </button>
-                                <button class="context-menu-item"
-                                        @onclick:stopPropagation
-                                        @onclick="() => { _ = AddRequest(c); _openCollectionMenuId = null; }">
-                                    <span>＋</span> Nouvelle requête
-                                </button>
-                                <button class="context-menu-item danger"
-                                        @onclick:stopPropagation
-                                        @onclick="() => { _ = DeleteCollection(c); _openCollectionMenuId = null; }">
-                                    <span>🗑</span> Supprimer la collection
-                                </button>
-                            }
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { StartAddFolder(c.Id); _openCollectionMenuId = null; }">
+                                <span>📁</span> Nouveau dossier
+                            </button>
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { _ = AddRequest(c); _openCollectionMenuId = null; }">
+                                <span>＋</span> Nouvelle requête
+                            </button>
+                            <button class="context-menu-item danger"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { _ = DeleteCollection(c); _openCollectionMenuId = null; }">
+                                <span>🗑</span> Supprimer la collection
+                            </button>
                         </div>
                     }
                 </div>
@@ -296,8 +277,6 @@
                                     AllFolders="_allFolders.Where(f => f.CollectionId == c.Id).ToList()"
                                     AllRequests="c.Requests"
                                     OnChanged="ReloadAndNotify"
-                                    CanWrite="_writableCollectionIds.Contains(c.Id)"
-                                    UserId="@(_currentUserId ?? string.Empty)"
                                     FilterText="@(string.IsNullOrWhiteSpace(_filterText) || c.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ? string.Empty : _filterText)" />
                     @if (!c.Requests.Any(r => r.FolderId == null) &&
                          !_allFolders.Any(f => f.CollectionId == c.Id))
@@ -317,12 +296,7 @@
 @code {
     private List<Collection> _collections = new();
     private List<CollectionFolder> _allFolders = [];
-    private List<(int Id, string Name)> _availableTeams = [];
-    private bool _isSuperAdmin;
     private AppEnvironment? _globalBase;
-    private string? _currentUserId;
-    private HashSet<int> _writableCollectionIds = [];
-    private bool _canCreateCollections;
     private List<AppEnvironment> _globalSubsets = new();
     private HashSet<int> _expanded = new();
     private string _filterText = string.Empty;
@@ -343,46 +317,7 @@
     {
         State.OnChange += OnStateChanged;
         await LoadSettingsAsync();
-        var authState = await AuthProvider.GetAuthenticationStateAsync();
-        _currentUserId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _isSuperAdmin = authState.User.IsInRole("SuperAdmin");
-        await LoadTeamsAsync();
         await ReloadAsync();
-    }
-
-    private async Task LoadTeamsAsync()
-    {
-        using var db = await DbFactory.CreateDbContextAsync();
-        if (_isSuperAdmin)
-        {
-            _availableTeams = await db.Teams
-                .OrderBy(t => t.Name)
-                .Select(t => new { t.Id, t.Name })
-                .AsNoTracking()
-                .ToListAsync()
-                .ContinueWith(r => r.Result.Select(t => (t.Id, t.Name)).ToList());
-        }
-        else if (_currentUserId is not null)
-        {
-            _availableTeams = await db.TeamMembers
-                .Where(m => m.UserId == _currentUserId)
-                .OrderBy(m => m.Team!.Name)
-                .Select(m => new { m.TeamId, m.Team!.Name })
-                .AsNoTracking()
-                .ToListAsync()
-                .ContinueWith(r => r.Result.Select(t => (t.TeamId, t.Name)).ToList());
-        }
-
-        // Auto-select: if nothing chosen yet, pick the first available team
-        if (State.ActiveTeamId is null && _availableTeams.Count > 0)
-            State.ActiveTeamId = _availableTeams[0].Id;
-    }
-
-    private async Task OnTeamChanged(ChangeEventArgs e)
-    {
-        State.ActiveTeamId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
-        await ReloadAsync();
-        await InvokeAsync(StateHasChanged);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -532,43 +467,11 @@
     {
         using var db = await DbFactory.CreateDbContextAsync();
 
-        if (_currentUserId is null)
-        {
-            _collections = [];
-        }
-        else if (State.ActiveTeamId.HasValue)
-        {
-            _collections = await db.Collections
-                .Include(c => c.Requests)
-                .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
-                .Where(c => c.TeamId == State.ActiveTeamId)
-                .OrderBy(c => c.Name)
-                .ToListAsync();
-        }
-        else if (_isSuperAdmin)
-        {
-            _collections = await db.Collections
-                .Include(c => c.Requests)
-                .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
-                .OrderBy(c => c.Name)
-                .ToListAsync();
-        }
-        else
-        {
-            var teamIds = await db.TeamMembers
-                .Where(m => m.UserId == _currentUserId)
-                .Select(m => m.TeamId)
-                .ToListAsync();
-
-            _collections = await db.Collections
-                .Include(c => c.Requests)
-                .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
-                .Where(c => c.TeamId.HasValue && teamIds.Contains(c.TeamId.Value))
-                .OrderBy(c => c.Name)
-                .ToListAsync();
-        }
-
-        await RefreshPermissionsAsync();
+        _collections = await db.Collections
+            .Include(c => c.Requests)
+            .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
+            .OrderBy(c => c.Name)
+            .ToListAsync();
 
         _allFolders = await db.CollectionFolders.ToListAsync();
         var envs = await db.Environments
@@ -577,26 +480,6 @@
             .ToListAsync();
         _globalBase = envs.FirstOrDefault(e => e.IsBase);
         _globalSubsets = envs.Where(e => !e.IsBase).ToList();
-    }
-
-    private async Task RefreshPermissionsAsync()
-    {
-        if (_currentUserId is null) return;
-
-        var authState = await AuthProvider.GetAuthenticationStateAsync();
-        var isSuperAdmin = authState.User.IsInRole("SuperAdmin");
-
-        _writableCollectionIds.Clear();
-        foreach (var c in _collections)
-        {
-            var role = isSuperAdmin
-                ? TeamRole.Contributor
-                : (await PermissionService.GetRoleForCollectionAsync(_currentUserId, c.Id));
-            if (role is TeamRole.Contributor or TeamRole.TeamAdmin)
-                _writableCollectionIds.Add(c.Id);
-        }
-
-        _canCreateCollections = isSuperAdmin || _writableCollectionIds.Count > 0;
     }
 
     private void ToggleCollection(int id)
@@ -664,7 +547,7 @@
             try
             {
                 using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-                var result = await Importer.ImportFileAsync(stream, file.Name, State.ActiveTeamId);
+                var result = await Importer.ImportFileAsync(stream, file.Name);
                 if (result.RequestsCreated > 0 || result.FoldersCreated > 0)
                 {
                     totalCollections++;
@@ -711,9 +594,7 @@
         if (string.IsNullOrWhiteSpace(_newCollectionName)) return;
         using var db = await DbFactory.CreateDbContextAsync();
 
-        var teamId = State.ActiveTeamId;
-
-        var c = new Collection { Name = _newCollectionName.Trim(), TeamId = teamId };
+        var c = new Collection { Name = _newCollectionName.Trim() };
         db.Collections.Add(c);
         await db.SaveChangesAsync();
         _expanded.Add(c.Id);
@@ -750,7 +631,7 @@
         await db.SaveChangesAsync();
         _expanded.Add(c.Id);
         await ReloadAsync();
-        await Tabs.OpenTabAsync(r.Id, _currentUserId ?? string.Empty);
+        await Tabs.OpenTabAsync(r.Id);
     }
 
     private async Task ReloadAndNotify(int collectionId)

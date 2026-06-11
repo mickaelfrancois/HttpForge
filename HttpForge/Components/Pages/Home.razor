@@ -1,13 +1,10 @@
 @page "/"
-@attribute [Authorize]
 @rendermode InteractiveServer
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
 @inject RequestExecutor Executor
 @inject ScriptRunner ScriptRunner
 @inject IJSRuntime JS
-@inject PermissionService PermissionService
-@inject AuthenticationStateProvider AuthProvider
 @inject RequestSaveService SaveService
 @inject RequestChangeNotifier Notifier
 @inject TabManagerService Tabs
@@ -28,13 +25,6 @@
 else
 {
     var tab = Active!;
-
-    @if (State.IsReadOnly)
-    {
-        <div class="guest-banner">
-            Vous êtes en mode lecture — vos modifications ne seront pas enregistrées.
-        </div>
-    }
 
     @if (_reloadToast is not null)
     {
@@ -75,7 +65,7 @@ else
             {
                 <button class="send-btn" @onclick="SendAsync">Send</button>
             }
-            @if (!State.IsReadOnly && tab.Draft.IsDirty)
+            @if (tab.Draft.IsDirty)
             {
                 <button class="save-btn" @onclick="() => SaveDraftAsync(false)">Save</button>
             }
@@ -190,10 +180,10 @@ else
                     <KeyValueGrid Items="tab.Draft.Variables"
                                   ItemCreator="@(() => new RequestVariable { HttpRequestItemId = tab.Draft.RequestId })"
                                   KeyOf="@(i => ((RequestVariable)i).Key)"
-                                  ValueOf="@(i => tab.PendingPersonalValues.TryGetValue(((RequestVariable)i).Key, out var pv) ? pv : string.Empty)"
+                                  ValueOf="@(i => ((RequestVariable)i).Value)"
                                   EnabledOf="@(_ => true)"
                                   SetKey="@((i, v) => { ((RequestVariable)i).Key = v; tab.Draft.MarkDirty(); })"
-                                  SetValue="@((i, v) => tab.PendingPersonalValues[((RequestVariable)i).Key] = v)"
+                                  SetValue="@((i, v) => { ((RequestVariable)i).Value = v; tab.Draft.MarkDirty(); })"
                                   SetEnabled="@((i, v) => { })"
                                   OnChanged="OnRequestVarChangedAsync"
                                   OnRemove="RemoveRequestVarAsync"
@@ -207,7 +197,6 @@ else
                             <div class="script-untrusted-warning">
                                 <span>⚠ Ce script a été importé et est <strong>désactivé</strong> pour des raisons de sécurité. Vérifiez son contenu ci-dessous, puis activez-le si vous lui faites confiance.</span>
                                 <button class="btn-enable-script"
-                                        disabled="@State.IsReadOnly"
                                         @onclick="EnableScriptAsync">Activer le script</button>
                             </div>
                         }
@@ -224,7 +213,6 @@ else
                         <label class="tls-toggle">
                             <input type="checkbox"
                                    checked="@tab.Draft.IgnoreTlsErrors"
-                                   disabled="@State.IsReadOnly"
                                    @onchange="OnIgnoreTlsChanged" />
                             <span>Ignorer les erreurs de certificat TLS</span>
                         </label>
@@ -363,9 +351,9 @@ else
     {
         <div class="hf-modal-backdrop">
             <div class="hf-modal">
-                <p><strong>Cette requête a été modifiée par @_conflictByUserName à @_conflictAt?.ToString("HH:mm:ss")</strong></p>
-                <p>Voulez-vous écraser leurs modifications ou annuler ?</p>
-                <button class="btn-danger" @onclick="OnSaveOverwriteAsync">Écraser leurs modifications</button>
+                <p><strong>Cette requête a été modifiée dans une autre fenêtre à @_conflictAt?.ToString("HH:mm:ss")</strong></p>
+                <p>Voulez-vous écraser ces modifications ou annuler ?</p>
+                <button class="btn-danger" @onclick="OnSaveOverwriteAsync">Écraser les modifications</button>
                 <button @onclick="OnCancelSave">Annuler</button>
             </div>
         </div>
@@ -398,14 +386,14 @@ else
     private IReadOnlyList<ResolvedVariableEntry> _resolvedVariables = Array.Empty<ResolvedVariableEntry>();
     private readonly string[] _subTabs = ["Params", "Headers", "Body", "Variables", "Scripts", "Options"];
 
-    private string? _currentUserId;
-    private string? _currentUserName;
+    // Identifies this circuit so the change notifier can skip notifications for our own
+    // saves. Not a user identity — only distinguishes "this window" from "another window".
+    private readonly string _originId = Guid.NewGuid().ToString();
 
     // Modal/toast state
     private bool _showUnsavedModal;
     private int? _pendingCloseTabId;
     private bool _showConflictModal;
-    private string? _conflictByUserName;
     private DateTime? _conflictAt;
     private string? _reloadToast;
 
@@ -413,10 +401,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthProvider.GetAuthenticationStateAsync();
-        _currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        _currentUserName = authState.User.FindFirstValue(ClaimTypes.Email) ?? "Unknown";
-
         State.OnChange += OnStateChanged;
         Notifier.RequestSaved += OnRequestSavedByOther;
         _tabsOnChange = () => InvokeAsync(StateHasChanged);
@@ -430,7 +414,7 @@ else
     {
         if (firstRender)
         {
-            await Tabs.InitAsync(JS, _currentUserId ?? string.Empty);
+            await Tabs.InitAsync(JS);
             await LoadActiveTabContextAsync();
             await InvokeAsync(StateHasChanged);
         }
@@ -480,7 +464,7 @@ else
         RebuildVariables();
     }
 
-    // Loads the saved request + collection var sets + read-only state for the ACTIVE tab.
+    // Loads the saved request + collection var sets for the ACTIVE tab.
     // The editable draft itself lives in TabState and is NOT reloaded here.
     private async Task LoadActiveTabContextAsync()
     {
@@ -493,7 +477,6 @@ else
             _collectionBase = null;
             _collectionSubset = null;
             State.SelectedCollectionId = null;
-            State.IsReadOnly = false;
             RebuildVariables();
             return;
         }
@@ -520,12 +503,6 @@ else
             : null;
 
         State.SelectedCollectionId = request?.CollectionId;
-        if (request is not null && _currentUserId is not null)
-            active.IsReadOnly = await PermissionService.IsReadOnlyAsync(_currentUserId, request.CollectionId);
-        else
-            active.IsReadOnly = request is not null;
-        State.IsReadOnly = active.IsReadOnly;
-
         _request = request;
         RebuildVariables();
     }
@@ -534,8 +511,7 @@ else
     {
         _resolvedVariables = State.BuildVariables(
             _globalBase, _globalSubset, _collectionBase, _collectionSubset,
-            _request,
-            Active?.UserVarValues ?? []);
+            _request);
     }
 
     private string Tooltip(string? text) => VariablePreview.Build(text, _resolvedVariables);
@@ -558,7 +534,7 @@ else
 
     private void OnMethodChanged(ChangeEventArgs e)
     {
-        if (Active is null || State.IsReadOnly) return;
+        if (Active is null) return;
         if (Enum.TryParse<HttpMethodKind>(e.Value?.ToString(), out var m))
         {
             Active.Draft.Method = m;
@@ -576,7 +552,7 @@ else
 
     private void OnIgnoreTlsChanged(ChangeEventArgs e)
     {
-        if (Active is null || State.IsReadOnly) return;
+        if (Active is null) return;
         Active.Draft.IgnoreTlsErrors = e.Value is true;
         Active.Draft.MarkDirty();
     }
@@ -592,7 +568,6 @@ else
 
     private void OnPostScriptChanged(TabState tab, string value)
     {
-        if (tab.IsReadOnly) return;
         tab.Draft.PostScript = value;
         // Editing the script in the editor is an explicit authoring/review action, so the
         // script becomes trusted and may execute on the next send.
@@ -602,7 +577,7 @@ else
 
     private async Task EnableScriptAsync()
     {
-        if (Active is null || State.IsReadOnly) return;
+        if (Active is null) return;
         Active.Draft.PostScriptTrusted = true;
         Active.Draft.MarkDirty();
         // Persist immediately; SaveDraftAsync reloads _request so the next send sees the
@@ -612,7 +587,7 @@ else
 
     private void OnBodyKindChanged(BodyKind kind)
     {
-        if (Active is null || State.IsReadOnly) return;
+        if (Active is null) return;
         Active.Draft.BodyKind = kind;
         Active.Draft.MarkDirty();
     }
@@ -621,14 +596,14 @@ else
 
     private Task SaveHeaderAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return Task.CompletedTask;
+        if (Active is null) return Task.CompletedTask;
         Active.Draft.MarkDirty();
         return Task.CompletedTask;
     }
 
     private Task RemoveHeaderAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return Task.CompletedTask;
+        if (Active is null) return Task.CompletedTask;
         Active.Draft.Headers.Remove((HeaderItem)item);
         Active.Draft.MarkDirty();
         return Task.CompletedTask;
@@ -636,14 +611,14 @@ else
 
     private Task SaveQueryParamAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return Task.CompletedTask;
+        if (Active is null) return Task.CompletedTask;
         Active.Draft.MarkDirty();
         return Task.CompletedTask;
     }
 
     private Task RemoveQueryParamAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return Task.CompletedTask;
+        if (Active is null) return Task.CompletedTask;
         Active.Draft.QueryParams.Remove((QueryParamItem)item);
         Active.Draft.MarkDirty();
         return Task.CompletedTask;
@@ -651,77 +626,35 @@ else
 
     private Task SaveFormFieldAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return Task.CompletedTask;
+        if (Active is null) return Task.CompletedTask;
         Active.Draft.MarkDirty();
         return Task.CompletedTask;
     }
 
     private Task RemoveFormFieldAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return Task.CompletedTask;
+        if (Active is null) return Task.CompletedTask;
         Active.Draft.FormFields.Remove((FormFieldItem)item);
         Active.Draft.MarkDirty();
         return Task.CompletedTask;
     }
 
-    // ── Variable methods — keys in draft, values personal ─────────────────────
+    // ── Variable methods — key + value live in the draft, saved with the request ──
 
-    private async Task OnRequestVarChangedAsync(object item)
+    private Task OnRequestVarChangedAsync(object item)
     {
-        if (State.IsReadOnly || Active is null || _currentUserId is null) return;
-        var active = Active;
-        var v = (RequestVariable)item;
-        active.Draft.MarkDirty();
-        if (active.PendingPersonalValues.TryGetValue(v.Key, out var personalValue))
-            await UpsertPersonalValueAsync(active, "request", active.Draft.RequestId, v.Key, personalValue);
-        RebuildVariables();
+        if (Active is null) return Task.CompletedTask;
+        Active.Draft.MarkDirty();
+        return Task.CompletedTask;
     }
 
-    private async Task RemoveRequestVarAsync(object item)
+    private Task RemoveRequestVarAsync(object item)
     {
-        if (State.IsReadOnly || Active is null) return;
-        var active = Active;
-        var v = (RequestVariable)item;
-        active.Draft.Variables.Remove(v);
-        active.PendingPersonalValues.Remove(v.Key);
-        active.Draft.MarkDirty();
+        if (Active is null) return Task.CompletedTask;
+        Active.Draft.Variables.Remove((RequestVariable)item);
+        Active.Draft.MarkDirty();
         RebuildVariables();
-        if (_currentUserId is not null)
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var existing = await db.UserVariableValues.FirstOrDefaultAsync(uv =>
-                uv.UserId == _currentUserId && uv.ScopeType == "request" &&
-                uv.ScopeId == active.Draft.RequestId && uv.VariableKey == v.Key);
-            if (existing is not null)
-            {
-                db.UserVariableValues.Remove(existing);
-                await db.SaveChangesAsync();
-            }
-        }
-    }
-
-    private async Task UpsertPersonalValueAsync(TabState tab, string scopeType, int scopeId, string key, string value)
-    {
-        if (_currentUserId is null) return;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var existing = await db.UserVariableValues.FirstOrDefaultAsync(uv =>
-            uv.UserId == _currentUserId && uv.ScopeType == scopeType &&
-            uv.ScopeId == scopeId && uv.VariableKey == key);
-        if (existing is null)
-            db.UserVariableValues.Add(new UserVariableValue
-            {
-                UserId = _currentUserId, ScopeType = scopeType, ScopeId = scopeId,
-                VariableKey = key, Value = value
-            });
-        else
-            existing.Value = value;
-        await db.SaveChangesAsync();
-        var memEntry = tab.UserVarValues.FirstOrDefault(v => v.VariableKey == key);
-        if (memEntry is null)
-            tab.UserVarValues.Add(new UserVariableValue { UserId = _currentUserId, ScopeType = scopeType, ScopeId = scopeId, VariableKey = key, Value = value });
-        else
-            memEntry.Value = value;
-        RebuildVariables();
+        return Task.CompletedTask;
     }
 
     // ── Save + modal handlers ─────────────────────────────────────────────────
@@ -729,13 +662,12 @@ else
     private async Task SaveDraftAsync(bool forceOverwrite)
     {
         var tab = Active;
-        if (tab is null || _currentUserId is null || State.IsReadOnly) return;
+        if (tab is null) return;
 
-        var result = await SaveService.SaveAsync(tab.Draft, _currentUserId, _currentUserName ?? "Unknown", forceOverwrite);
+        var result = await SaveService.SaveAsync(tab.Draft, _originId, forceOverwrite);
 
         if (result.IsConflict)
         {
-            _conflictByUserName = result.ConflictByUserName;
             _conflictAt = result.ConflictAt;
             _showConflictModal = true;
             return;
@@ -766,20 +698,16 @@ else
         var tab = Tabs.Tabs.FirstOrDefault(t => t.RequestId == id);
         if (tab is null) { _pendingCloseTabId = null; return; }
 
-        if (!tab.IsReadOnly && _currentUserId is not null)
+        var result = await SaveService.SaveAsync(tab.Draft, _originId, false);
+        if (result.IsConflict)
         {
-            var result = await SaveService.SaveAsync(tab.Draft, _currentUserId, _currentUserName ?? "Unknown", false);
-            if (result.IsConflict)
-            {
-                Tabs.ActivateTab(id);
-                _conflictByUserName = result.ConflictByUserName;
-                _conflictAt = result.ConflictAt;
-                _showConflictModal = true;
-                _pendingCloseTabId = null;
-                return;
-            }
-            tab.Draft.ClearDirty();
+            Tabs.ActivateTab(id);
+            _conflictAt = result.ConflictAt;
+            _showConflictModal = true;
+            _pendingCloseTabId = null;
+            return;
         }
+        tab.Draft.ClearDirty();
 
         Tabs.ForceCloseTab(id);
         _pendingCloseTabId = null;
@@ -833,12 +761,12 @@ else
     // Invoked by the singleton notifier on the *saving* circuit's thread. Marshal
     // everything onto this circuit's renderer before reading scoped state (Active),
     // so we never touch another circuit's TabManagerService off-thread.
-    private Task OnRequestSavedByOther(int requestId, string savedByUserId, string savedByUserName)
+    private Task OnRequestSavedByOther(int requestId, string originId)
         => InvokeAsync(() =>
         {
-            if (requestId == Active?.RequestId && savedByUserId != _currentUserId)
+            if (requestId == Active?.RequestId && originId != _originId)
             {
-                _reloadToast = $"{savedByUserName} vient de sauvegarder cette requête.";
+                _reloadToast = "Cette requête a été modifiée dans une autre fenêtre.";
                 StateHasChanged();
             }
         });
@@ -859,8 +787,7 @@ else
         // so unsaved variable edits apply to this send.
         var resolvedVariables = State.BuildVariables(
             _globalBase, _globalSubset, _collectionBase, _collectionSubset,
-            request,
-            tab.UserVarValues);
+            request);
 
         var vars = resolvedVariables.ToDictionary(
             v => v.Key,
@@ -868,7 +795,6 @@ else
             StringComparer.OrdinalIgnoreCase);
         var activeCollectionSetId = (_collectionSubset ?? _collectionBase)?.Id;
         var activeGlobalEnvId = (_globalSubset ?? _globalBase)?.Id;
-        var isReadOnly = State.IsReadOnly;
 
         var cts = new CancellationTokenSource();
         tab.SendCts = cts;
@@ -904,7 +830,7 @@ else
 
                     tab.ScriptResult = scriptResult;
 
-                    if (scriptResult is not null && !isReadOnly && ReferenceEquals(Active, tab))
+                    if (scriptResult is not null && ReferenceEquals(Active, tab))
                         ApplyScriptMutationsToMemory(scriptResult);
                 }
             }

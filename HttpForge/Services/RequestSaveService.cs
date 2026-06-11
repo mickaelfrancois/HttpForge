@@ -1,26 +1,22 @@
 using HttpForge.Data;
 using HttpForge.Data.Entities;
 using HttpForge.Models;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace HttpForge.Services;
 
 public class RequestSaveService(
     IDbContextFactory<AppDbContext> dbFactory,
-    RequestChangeNotifier notifier,
-    UserManager<AppUser> userManager,
-    PermissionService permissions)
+    RequestChangeNotifier notifier)
 {
-    public record SaveResult(bool IsConflict, string? ConflictByUserName = null, DateTime? ConflictAt = null, DateTime? SavedAt = null);
+    public record SaveResult(bool IsConflict, DateTime? ConflictAt = null, DateTime? SavedAt = null);
 
     public static bool HasConflict(DateTime dbUpdatedAt, DateTime draftLoadedAt) =>
         dbUpdatedAt > draftLoadedAt;
 
     public async Task<SaveResult> SaveAsync(
         RequestDraft draft,
-        string currentUserId,
-        string currentUserName,
+        string originId,
         bool forceOverwrite)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -35,22 +31,11 @@ public class RequestSaveService(
         if (dbItem is null)
             return new SaveResult(IsConflict: false);
 
-        // Defense-in-depth: the UI already blocks saves on read-only requests, but the
-        // write path must not trust UI flags alone. Re-verify server-side that this user
-        // may write to the request's collection before persisting any mutation.
-        if (await permissions.IsReadOnlyAsync(currentUserId, dbItem.CollectionId))
-            return new SaveResult(IsConflict: false);
-
+        // Conflict guard for the "same request open in two windows" case: if the DB
+        // copy was updated after this draft was loaded, surface a conflict instead of
+        // silently overwriting the other window's save.
         if (!forceOverwrite && HasConflict(dbItem.UpdatedAt, draft.LoadedAt))
-        {
-            string conflictName = "Unknown";
-            if (dbItem.UpdatedByUserId is not null)
-            {
-                var user = await userManager.FindByIdAsync(dbItem.UpdatedByUserId);
-                conflictName = user?.Email ?? "Unknown";
-            }
-            return new SaveResult(IsConflict: true, ConflictByUserName: conflictName, ConflictAt: dbItem.UpdatedAt);
-        }
+            return new SaveResult(IsConflict: true, ConflictAt: dbItem.UpdatedAt);
 
         dbItem.Name = draft.Name;
         dbItem.Method = draft.Method;
@@ -61,7 +46,6 @@ public class RequestSaveService(
         dbItem.PostScriptTrusted = draft.PostScriptTrusted;
         dbItem.IgnoreTlsErrors = draft.IgnoreTlsErrors;
         dbItem.UpdatedAt = DateTime.UtcNow;
-        dbItem.UpdatedByUserId = currentUserId;
 
         db.RemoveRange(dbItem.Headers);
         db.RemoveRange(dbItem.QueryParams);
@@ -78,11 +62,11 @@ public class RequestSaveService(
             db.Add(new RequestVariable { HttpRequestItemId = dbItem.Id, Key = v.Key, Value = v.Value, IsSecret = v.IsSecret });
 
         await db.SaveChangesAsync();
-        await notifier.NotifyAsync(draft.RequestId, currentUserId, currentUserName);
+        await notifier.NotifyAsync(draft.RequestId, originId);
 
         // Return the timestamp we just wrote so the caller can rebase its draft's
-        // LoadedAt onto this version. Without that, a second consecutive save by the
-        // same user would see dbItem.UpdatedAt > draft.LoadedAt and falsely conflict.
+        // LoadedAt onto this version. Without that, a second consecutive save from the
+        // same window would see dbItem.UpdatedAt > draft.LoadedAt and falsely conflict.
         return new SaveResult(IsConflict: false, SavedAt: dbItem.UpdatedAt);
     }
 }

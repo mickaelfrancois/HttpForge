@@ -5,9 +5,12 @@ namespace HttpForge.Services;
 
 public class RequestChangeNotifier(ILogger<RequestChangeNotifier>? logger = null)
 {
-    public event Func<int, string, string, Task>? RequestSaved;
+    // Second arg is the originId of the saving circuit (a per-circuit GUID), so a
+    // circuit can ignore notifications for its own saves. No user identity is involved —
+    // this only guards the "same request open in two windows" case.
+    public event Func<int, string, Task>? RequestSaved;
 
-    public async Task NotifyAsync(int requestId, string savedByUserId, string savedByUserName)
+    public async Task NotifyAsync(int requestId, string originId)
     {
         if (RequestSaved is not { } ev) return;
 
@@ -17,11 +20,11 @@ public class RequestChangeNotifier(ILogger<RequestChangeNotifier>? logger = null
         // tearing-down renderer. Each handler MUST be isolated: it runs on the
         // *saving* circuit's thread, so letting an exception escape would tear that
         // circuit down and show the blank reconnect overlay.
-        foreach (var handler in ev.GetInvocationList().Cast<Func<int, string, string, Task>>())
+        foreach (var handler in ev.GetInvocationList().Cast<Func<int, string, Task>>())
         {
             try
             {
-                await handler(requestId, savedByUserId, savedByUserName);
+                await handler(requestId, originId);
             }
             catch (Exception ex)
             {

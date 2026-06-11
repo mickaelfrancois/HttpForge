@@ -29,22 +29,16 @@ public class TabManagerServiceTests : IDisposable
     {
         var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
         factory.CreateDbContextAsync(default).Returns(_ => Task.FromResult(new AppDbContext(_opts)));
-        return new TabManagerService(factory, _appState, new PermissionService(factory));
+        return new TabManagerService(factory, _appState);
     }
 
-    // Seeds the collection under a team with "user1" as Contributor so the
-    // PermissionService checks in TabManagerService grant access.
     private async Task<int> SeedRequestAsync(string name = "GET /test")
     {
         await using var db = new AppDbContext(_opts);
         var col = await db.Collections.FirstOrDefaultAsync();
         if (col is null)
         {
-            var team = new Team { Name = "Test Team" };
-            db.Teams.Add(team);
-            await db.SaveChangesAsync();
-            db.TeamMembers.Add(new TeamMember { TeamId = team.Id, UserId = "user1", Role = TeamRole.Contributor });
-            col = new Collection { Name = "Test", TeamId = team.Id };
+            col = new Collection { Name = "Test" };
             db.Collections.Add(col);
             await db.SaveChangesAsync();
         }
@@ -67,7 +61,7 @@ public class TabManagerServiceTests : IDisposable
         var sut = CreateSut();
         var id = await SeedRequestAsync("GET /users");
 
-        await sut.OpenTabAsync(id, "user1");
+        await sut.OpenTabAsync(id);
 
         Assert.Single(sut.Tabs);
         Assert.Equal(id, sut.Tabs[0].RequestId);
@@ -82,8 +76,8 @@ public class TabManagerServiceTests : IDisposable
         var sut = CreateSut();
         var id = await SeedRequestAsync();
 
-        await sut.OpenTabAsync(id, "user1");
-        await sut.OpenTabAsync(id, "user1");
+        await sut.OpenTabAsync(id);
+        await sut.OpenTabAsync(id);
 
         Assert.Single(sut.Tabs);
         Assert.Equal(id, sut.ActiveTab!.RequestId);
@@ -95,8 +89,8 @@ public class TabManagerServiceTests : IDisposable
         var sut = CreateSut();
         var id1 = await SeedRequestAsync("GET /a");
         var id2 = await SeedRequestAsync("GET /b");
-        await sut.OpenTabAsync(id1, "user1");
-        await sut.OpenTabAsync(id2, "user1");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
 
         sut.CloseTab(id2);
 
@@ -109,7 +103,7 @@ public class TabManagerServiceTests : IDisposable
     {
         var sut = CreateSut();
         var id = await SeedRequestAsync();
-        await sut.OpenTabAsync(id, "user1");
+        await sut.OpenTabAsync(id);
         sut.ActiveTab!.Draft.MarkDirty();
 
         TabState? captured = null;
@@ -127,7 +121,7 @@ public class TabManagerServiceTests : IDisposable
     {
         var sut = CreateSut();
         var id = await SeedRequestAsync();
-        await sut.OpenTabAsync(id, "user1");
+        await sut.OpenTabAsync(id);
         sut.ActiveTab!.Draft.MarkDirty();
 
         bool eventFired = false;
@@ -146,8 +140,8 @@ public class TabManagerServiceTests : IDisposable
         var sut = CreateSut();
         var id1 = await SeedRequestAsync("GET /a");
         var id2 = await SeedRequestAsync("GET /b");
-        await sut.OpenTabAsync(id1, "user1");
-        await sut.OpenTabAsync(id2, "user1");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
 
         sut.CloseAllTabs();
 

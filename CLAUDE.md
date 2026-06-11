@@ -28,7 +28,7 @@ HttpForge is a Blazor Server app on .NET 10. It is a local HTTP client tool (Ins
 
 ### Data layer
 
-- **No EF Core migrations.** The schema is created via `db.Database.EnsureCreated()` at startup, then `SchemaUpgrader.Apply(db)` adds missing columns and tables using raw SQLite DDL. Any schema change requires an `EnsureColumn` or `EnsureTable` call in `SchemaUpgrader`.
+- **EF Core migrations.** The schema is owned by migrations in `HttpForge/Migrations/` and applied at startup via `db.Database.Migrate()` (Program.cs), followed by `DbSeeder.Apply(db)` which idempotently seeds the singleton `AppSettings` row and the global "Base" environment. Any schema change requires a new migration: `dotnet ef migrations add <Name> --project HttpForge`. (Tests still use `EnsureCreated()` against in-memory/SQLite, which builds the schema from the model and is fine alongside migrations.)
 - All components use `IDbContextFactory<AppDbContext>` (not `AppDbContext` directly) and create short-lived contexts per operation — required for Blazor Server async patterns.
 
 ### State management

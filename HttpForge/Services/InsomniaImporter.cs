@@ -37,7 +37,7 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
         });
     }
 
-    public async Task<ImportResult> ImportFileAsync(Stream content, string filename, int? teamId = null)
+    public async Task<ImportResult> ImportFileAsync(Stream content, string filename)
     {
         var warnings = new List<string>();
 
@@ -57,7 +57,7 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
 
         if (file.Type == "collection.insomnia.rest/5.0")
         {
-            var (req, folders, vars) = await ImportCollectionAsync(db, file, teamId, warnings);
+            var (req, folders, vars) = await ImportCollectionAsync(db, file, warnings);
             await db.SaveChangesAsync();
             return new ImportResult(filename, req, folders, vars, warnings);
         }
@@ -74,9 +74,9 @@ public class InsomniaImporter(IDbContextFactory<AppDbContext> dbFactory)
     }
 
     private static async Task<(int requests, int folders, int variables)> ImportCollectionAsync(
-        AppDbContext db, InsomniaFile file, int? teamId, List<string> warnings)
+        AppDbContext db, InsomniaFile file, List<string> warnings)
     {
-        var collection = new Collection { Name = file.Name ?? "Imported", TeamId = teamId };
+        var collection = new Collection { Name = file.Name ?? "Imported" };
         db.Collections.Add(collection);
         await db.SaveChangesAsync();
 

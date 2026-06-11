@@ -1,10 +1,9 @@
 using HttpForge.Data.Entities;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace HttpForge.Data;
 
-public class AppDbContext : IdentityDbContext<AppUser>
+public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -21,14 +20,10 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<CollectionVariableEntry> CollectionVariableEntries => Set<CollectionVariableEntry>();
     public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
     public DbSet<AppSettings> Settings => Set<AppSettings>();
-    public DbSet<Team> Teams => Set<Team>();
-    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
-    public DbSet<InvitationToken> InvitationTokens => Set<InvitationToken>();
-    public DbSet<UserVariableValue> UserVariableValues => Set<UserVariableValue>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
-        base.OnModelCreating(b); // must be first — registers Identity entity configurations
+        base.OnModelCreating(b);
 
         b.Entity<Collection>()
             .HasMany(c => c.Requests)
@@ -97,9 +92,5 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<AppSettings>().ToTable("AppSettings");
-
-        b.Entity<UserVariableValue>()
-            .HasIndex(v => new { v.UserId, v.ScopeType, v.ScopeId, v.VariableKey })
-            .IsUnique();
     }
 }

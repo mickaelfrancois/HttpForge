@@ -13,8 +13,7 @@ public record TabStorageData(TabStorageState[] Tabs, int? ActiveRequestId);
 
 public class TabManagerService(
     IDbContextFactory<AppDbContext> dbFactory,
-    AppState appState,
-    PermissionService permissions)
+    AppState appState)
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
     private readonly List<TabState> _tabs = [];
@@ -26,7 +25,7 @@ public class TabManagerService(
     public event Action? OnChange;
     public event Func<TabState, Task>? OnCloseRequested;
 
-    public async Task InitAsync(IJSRuntime js, string userId)
+    public async Task InitAsync(IJSRuntime js)
     {
         if (_js is not null) return;
         _js = js;
@@ -37,20 +36,20 @@ public class TabManagerService(
         if (data is null) return;
 
         foreach (var stored in data.Tabs)
-            await OpenTabInternalAsync(stored.RequestId, userId, stored.ActiveSubTab);
+            await OpenTabInternalAsync(stored.RequestId, stored.ActiveSubTab);
 
         if (data.ActiveRequestId.HasValue)
             ActivateTab(data.ActiveRequestId.Value, persist: false);
     }
 
-    public async Task OpenTabAsync(int requestId, string userId)
+    public async Task OpenTabAsync(int requestId)
     {
         if (_tabs.Any(t => t.RequestId == requestId))
         {
             ActivateTab(requestId);
             return;
         }
-        await OpenTabInternalAsync(requestId, userId, "Params");
+        await OpenTabInternalAsync(requestId, "Params");
         ActivateTab(requestId);
     }
 
@@ -101,7 +100,7 @@ public class TabManagerService(
         Notify();
     }
 
-    private async Task OpenTabInternalAsync(int requestId, string userId, string activeSubTab)
+    private async Task OpenTabInternalAsync(int requestId, string activeSubTab)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var request = await db.Requests
@@ -112,30 +111,13 @@ public class TabManagerService(
             .FirstOrDefaultAsync(r => r.Id == requestId);
         if (request is null) return;
 
-        // Authorization gate: a request id can reach this method from client-controlled
-        // tab state restored out of localStorage (forge.tabs.load), not only from the
-        // already-authorized sidebar. Verify the user has access to the request's
-        // collection here — never trust the id alone.
-        if (await permissions.GetRoleForCollectionAsync(userId, request.CollectionId) is null)
-            return;
-
-        var userVarValues = !string.IsNullOrEmpty(userId)
-            ? await db.UserVariableValues
-                .Where(v => v.UserId == userId && v.ScopeType == "request" && v.ScopeId == requestId)
-                .ToListAsync()
-            : [];
-
-        var pendingPersonal = userVarValues.ToDictionary(v => v.VariableKey, v => v.Value, StringComparer.OrdinalIgnoreCase);
-
         _tabs.Add(new TabState
         {
             RequestId = requestId,
             Name = request.Name,
             Method = request.Method.ToString(),
             Draft = RequestDraft.FromRequest(request, DateTime.UtcNow),
-            ActiveSubTab = activeSubTab,
-            UserVarValues = userVarValues,
-            PendingPersonalValues = pendingPersonal
+            ActiveSubTab = activeSubTab
         });
     }
 

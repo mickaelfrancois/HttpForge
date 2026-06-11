@@ -45,7 +45,7 @@
                             @onclick="() => _openFolderMenuId = (_openFolderMenuId == folder.Id ? (int?)null : folder.Id)">
                         ⚙
                     </button>
-                    @if (_openFolderMenuId == folder.Id && CanWrite)
+                    @if (_openFolderMenuId == folder.Id)
                     {
                         <div class="context-menu">
                             <button class="context-menu-item"
@@ -93,8 +93,6 @@
                                 AllFolders="AllFolders"
                                 AllRequests="AllRequests"
                                 OnChanged="OnChanged"
-                                CanWrite="CanWrite"
-                                UserId="@UserId"
                                 FilterText="@(FolderMatches(folder) ? string.Empty : FilterText)" />
             </div>
         }
@@ -104,7 +102,7 @@
 @* Requests at this level *@
 @foreach (var r in DirectRequests)
 {
-    <RequestRow Request="r" CanWrite="CanWrite" OnChanged="OnChanged" UserId="@UserId" />
+    <RequestRow Request="r" OnChanged="OnChanged" />
 }
 
 @* Inline "add folder" at this level (when _addingUnder == -1) *@
@@ -126,8 +124,6 @@
     [Parameter, EditorRequired] public List<HttpRequestItem> AllRequests { get; set; } = [];
     [Parameter] public EventCallback<int> OnChanged { get; set; }
     [Parameter] public string FilterText { get; set; } = string.Empty;
-    [Parameter] public bool CanWrite { get; set; } = true;
-    [Parameter] public string UserId { get; set; } = string.Empty;
 
     private bool IsFiltering => !string.IsNullOrWhiteSpace(FilterText);
 
@@ -299,7 +295,7 @@
         db.Requests.Add(r);
         await db.SaveChangesAsync();
         await OnChanged.InvokeAsync(CollectionId);
-        await Tabs.OpenTabAsync(r.Id, UserId);
+        await Tabs.OpenTabAsync(r.Id);
     }
 
     private List<int> GetAllDescendantFolderIds(int folderId, HashSet<int>? visited = null)

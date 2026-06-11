@@ -9,29 +9,26 @@ public class RequestChangeNotifierTests
     {
         var notifier = new RequestChangeNotifier();
         int receivedRequestId = 0;
-        string receivedUserId = "";
-        string receivedUserName = "";
+        string receivedOrigin = "";
 
-        notifier.RequestSaved += (id, uid, name) =>
+        notifier.RequestSaved += (id, origin) =>
         {
             receivedRequestId = id;
-            receivedUserId = uid;
-            receivedUserName = name;
+            receivedOrigin = origin;
             return Task.CompletedTask;
         };
 
-        await notifier.NotifyAsync(42, "user-123", "Alice");
+        await notifier.NotifyAsync(42, "origin-123");
 
         Assert.Equal(42, receivedRequestId);
-        Assert.Equal("user-123", receivedUserId);
-        Assert.Equal("Alice", receivedUserName);
+        Assert.Equal("origin-123", receivedOrigin);
     }
 
     [Fact]
     public async Task NotifyAsync_NoHandlers_DoesNotThrow()
     {
         var notifier = new RequestChangeNotifier();
-        var ex = await Record.ExceptionAsync(() => notifier.NotifyAsync(1, "u", "n"));
+        var ex = await Record.ExceptionAsync(() => notifier.NotifyAsync(1, "origin"));
         Assert.Null(ex);
     }
 
@@ -44,12 +41,12 @@ public class RequestChangeNotifierTests
     public async Task NotifyAsync_SubscriberThrows_IsolatesFailureAndNotifiesOthers()
     {
         var notifier = new RequestChangeNotifier();
-        notifier.RequestSaved += (_, _, _) => throw new ObjectDisposedException("TabManagerService");
+        notifier.RequestSaved += (_, _) => throw new ObjectDisposedException("TabManagerService");
 
         bool liveNotified = false;
-        notifier.RequestSaved += (_, _, _) => { liveNotified = true; return Task.CompletedTask; };
+        notifier.RequestSaved += (_, _) => { liveNotified = true; return Task.CompletedTask; };
 
-        var ex = await Record.ExceptionAsync(() => notifier.NotifyAsync(42, "user-123", "Alice"));
+        var ex = await Record.ExceptionAsync(() => notifier.NotifyAsync(42, "origin-123"));
 
         Assert.Null(ex);            // exception must not escape to the saver
         Assert.True(liveNotified);  // later subscribers must still be notified
