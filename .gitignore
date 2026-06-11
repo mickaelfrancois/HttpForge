@@ -4,6 +4,9 @@
 [Oo]ut/
 [Dd]ebug/
 [Rr]elease/
+
+## Publish output (.\publish.ps1)
+dist/
 *.user
 *.suo
 *.userosscache
