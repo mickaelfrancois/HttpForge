@@ -11,8 +11,9 @@ $project = Join-Path $PSScriptRoot 'HttpForge'
 Write-Host "Publication de HttpForge -> $Output ..." -ForegroundColor Cyan
 dotnet publish $project -c Release -o $Output
 
-# Copie le launcher a cote des binaires publies
-Copy-Item (Join-Path $PSScriptRoot 'run.ps1') $Output -Force
+# Copie les scripts de lancement a cote des binaires publies
+Copy-Item (Join-Path $PSScriptRoot 'run.ps1')  $Output -Force
+Copy-Item (Join-Path $PSScriptRoot 'stop.ps1') $Output -Force
 
 Write-Host ""
 Write-Host "OK. Pour lancer l'app :" -ForegroundColor Green

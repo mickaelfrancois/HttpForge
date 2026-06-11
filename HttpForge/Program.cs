@@ -3,7 +3,20 @@ using HttpForge.Data;
 using HttpForge.Services;
 using Microsoft.EntityFrameworkCore;
 
-var builder = WebApplication.CreateBuilder(args);
+// Hors Development, on epingle le ContentRoot sur le dossier du binaire : sinon, lance
+// depuis un autre repertoire de travail (raccourci, double-clic...), MapStaticAssets ne
+// trouve plus les assets et renvoie des corps vides -> echec d'integrite SRI cote Blazor.
+// En Development on garde le defaut pour que dotnet run/watch resolvent les assets sources.
+var isDevelopment = string.Equals(
+    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+        ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+    "Development", StringComparison.OrdinalIgnoreCase);
+
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = isDevelopment ? null : AppContext.BaseDirectory,
+});
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
