@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using HttpForge.Components;
 using HttpForge.Data;
 using HttpForge.Services;
@@ -21,8 +22,19 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-var dataDir = Environment.GetEnvironmentVariable("HTTPFORGE_DATA")
-    ?? builder.Environment.ContentRootPath;
+// Priorite a HTTPFORGE_DATA (Docker, run.ps1). Sinon : en Development ou hors Windows on
+// garde le ContentRoot (db a cote des sources / du binaire) ; sur un poste Windows en
+// Production (ex. double-clic sur HttpForge.exe) on range la db dans %LOCALAPPDATA%\HttpForge
+// pour ne pas la melanger aux binaires publies (un republish ecraserait le dossier).
+var dataDir = Environment.GetEnvironmentVariable("HTTPFORGE_DATA");
+if (string.IsNullOrEmpty(dataDir))
+{
+    dataDir = isDevelopment || !OperatingSystem.IsWindows()
+        ? builder.Environment.ContentRootPath
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "HttpForge");
+}
 Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "httpforge.db");
 builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
@@ -59,5 +71,26 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Double-clic sur HttpForge.exe : ouvre le navigateur une fois le serveur pret.
+// Conditions : Windows, hors Development, et sortie console NON redirigee. La redirection
+// (Console.IsOutputRedirected) est vraie quand run.ps1 lance l'app detachee en redirigeant
+// les logs : dans ce cas c'est run.ps1 qui ouvre le navigateur, on evite un double onglet.
+// Docker (Linux) est exclu par OperatingSystem.IsWindows().
+if (OperatingSystem.IsWindows() && !app.Environment.IsDevelopment() && !Console.IsOutputRedirected)
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        var url = app.Urls.FirstOrDefault() ?? "http://localhost:5000";
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Pas de navigateur disponible : on laisse tourner le serveur sans bloquer.
+        }
+    });
+}
 
 app.Run();

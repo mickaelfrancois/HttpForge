@@ -29,6 +29,44 @@ dotnet run --project HttpForge
 
 The app starts at `http://localhost:5000`. The database (`httpforge.db`) is created automatically on first run.
 
+## Publish & run on Windows (no Docker)
+
+For running on a Windows machine without Docker, publish a framework-dependent build and use the bundled launch scripts.
+
+### Prerequisite on the target machine
+
+- [ASP.NET Core 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (the *Runtime*, not the SDK — the published build is framework-dependent)
+
+### Publish
+
+From the repo root:
+
+```powershell
+.\publish.ps1                       # publishes into .\dist
+.\publish.ps1 -Output D:\Apps\HttpForge   # or to a custom folder
+```
+
+This produces the binaries plus `run.ps1` and `stop.ps1` in the output folder. Copy that folder to the target machine.
+
+### Run
+
+```powershell
+cd .\dist        # or your chosen output folder
+.\run.ps1
+```
+
+`run.ps1` starts HttpForge detached (the window can be closed), waits for it to respond, and opens `http://localhost:5000` in the browser. Running it again when the app is already up just reopens the browser.
+
+The database, logs, and PID file live in `%LOCALAPPDATA%\HttpForge`, so they survive republishing over the same folder. To stop the app:
+
+```powershell
+.\stop.ps1
+```
+
+### Or just double-click `HttpForge.exe`
+
+Double-clicking `HttpForge.exe` also works: it listens on `http://localhost:5000`, opens your browser automatically, and stores its database in `%LOCALAPPDATA%\HttpForge` (the same location as `run.ps1`). The difference is that a console window stays open — closing it stops the app. `run.ps1` is preferred when you want the app to keep running detached in the background.
+
 ## Docker Deployment
 
 ### Run with Docker Compose (pre-built image)
@@ -125,6 +163,6 @@ dotnet test HttpForge.sln
 |---|---|
 | Framework | ASP.NET Core 10 / Blazor Server |
 | Database | SQLite via EF Core |
-| Schema migrations | `EnsureCreated` + `SchemaUpgrader` (raw DDL) |
+| Schema migrations | EF Core migrations (`db.Database.Migrate()` at startup) |
 | Frontend | Bootstrap 5, CodeMirror 5 |
 | Tests | xUnit, Moq |
