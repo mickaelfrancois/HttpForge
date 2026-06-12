@@ -1,0 +1,47 @@
+name: Release
+
+# Declenche une release quand un tag de version est pousse, ex :
+#   git tag v1.0.0 && git push origin v1.0.0
+# Le workflow teste, publie (framework-dependent), zippe et attache le zip a la release GitHub.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test HttpForge.Tests -c Release --nologo
+
+      # Reutilise publish.ps1 : publication framework-dependent + copie de run.ps1 / stop.ps1.
+      - name: Publish
+        shell: pwsh
+        run: ./publish.ps1 -Output staging/HttpForge
+
+      # Le zip contient un dossier racine "HttpForge" pour ne pas eparpiller les fichiers a l'extraction.
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path staging/HttpForge -DestinationPath "HttpForge-${{ github.ref_name }}-win.zip"
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}"
+          "HttpForge-${{ github.ref_name }}-win.zip"
+          --title "HttpForge ${{ github.ref_name }}"
+          --generate-notes
