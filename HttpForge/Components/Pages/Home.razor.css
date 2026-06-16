@@ -133,6 +133,13 @@
     color: var(--text-primary);
 }
 
+.autosave-status {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    align-self: center;
+}
+
 .tabs {
     display: flex;
     border-bottom: 1px solid var(--border-main);

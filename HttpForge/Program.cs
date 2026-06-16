@@ -45,7 +45,9 @@ builder.Services.AddScoped<InsomniaImporter>();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<ScriptRunner>();
 builder.Services.AddSingleton<RequestChangeNotifier>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<RequestSaveService>();
+builder.Services.AddScoped<RequestAutoSaver>();
 builder.Services.AddScoped<TabManagerService>();
 
 var app = builder.Build();
