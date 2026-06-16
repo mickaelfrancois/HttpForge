@@ -6,6 +6,7 @@ namespace HttpForge.Models;
 public class TabState
 {
     public int RequestId { get; set; }
+    public int CollectionId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Method { get; set; } = "GET";
     public RequestDraft Draft { get; set; } = null!;

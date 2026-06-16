@@ -110,6 +110,24 @@ public class TabManagerService(
         Notify();
     }
 
+    public void CloseTabsOfCollection(int requestId)
+    {
+        var target = _tabs.FirstOrDefault(t => t.RequestId == requestId);
+        if (target is null) return;
+
+        var collectionId = target.CollectionId;
+        var toRemove = _tabs.Where(t => t.CollectionId == collectionId).ToList();
+        foreach (var t in toRemove) _tabs.Remove(t);
+
+        if (ActiveTab is null || !_tabs.Contains(ActiveTab))
+        {
+            ActiveTab = _tabs.FirstOrDefault();
+            appState.SelectedRequestId = ActiveTab?.RequestId;
+        }
+        appState.NotifyChanged();
+        Notify();
+    }
+
     public void CloseAllTabs()
     {
         _tabs.Clear();
@@ -133,6 +151,7 @@ public class TabManagerService(
         _tabs.Add(new TabState
         {
             RequestId = requestId,
+            CollectionId = request.CollectionId,
             Name = request.Name,
             Method = request.Method.ToString(),
             Draft = RequestDraft.FromRequest(request, DateTime.UtcNow),

@@ -270,4 +270,160 @@ public class TabManagerServiceTests : IDisposable
         Assert.Equal(id2, sut.ActiveTab!.RequestId);
         Assert.Equal(id2, _appState.SelectedRequestId);
     }
+
+    private async Task<int> SeedRequestInCollectionAsync(string collectionName, string name)
+    {
+        await using var db = new AppDbContext(_opts);
+        var col = await db.Collections.FirstOrDefaultAsync(c => c.Name == collectionName);
+        if (col is null)
+        {
+            col = new Collection { Name = collectionName };
+            db.Collections.Add(col);
+            await db.SaveChangesAsync();
+        }
+
+        var req = new HttpRequestItem
+        {
+            Name = name,
+            Method = HttpMethodKind.GET,
+            Url = "https://example.com",
+            CollectionId = col.Id
+        };
+        db.Requests.Add(req);
+        await db.SaveChangesAsync();
+        return req.Id;
+    }
+
+    [Fact]
+    public async Task OpenTabAsync_NewRequest_TabStateCarriesCollectionId()
+    {
+        var sut = CreateSut();
+        var id = await SeedRequestInCollectionAsync("Solo", "GET /x");
+        await sut.OpenTabAsync(id);
+
+        await using var db = new AppDbContext(_opts);
+        var expectedCollectionId = (await db.Requests.FindAsync(id))!.CollectionId;
+
+        Assert.NotEqual(0, sut.Tabs[0].CollectionId);
+        Assert.Equal(expectedCollectionId, sut.Tabs[0].CollectionId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_TargetCollection_ClosesAllOfThatCollectionIncludingClicked()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var a2 = await SeedRequestInCollectionAsync("A", "GET /a2");
+        var b1 = await SeedRequestInCollectionAsync("B", "GET /b1");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(a2);
+        await sut.OpenTabAsync(b1);
+
+        sut.CloseTabsOfCollection(a1);
+
+        Assert.Single(sut.Tabs);
+        Assert.Equal(b1, sut.Tabs[0].RequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_OtherCollectionsPreserved_KeepOrder()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var b1 = await SeedRequestInCollectionAsync("B", "GET /b1");
+        var a2 = await SeedRequestInCollectionAsync("A", "GET /a2");
+        var c1 = await SeedRequestInCollectionAsync("C", "GET /c1");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(b1);
+        await sut.OpenTabAsync(a2);
+        await sut.OpenTabAsync(c1);
+
+        sut.CloseTabsOfCollection(a1);
+
+        Assert.Equal(2, sut.Tabs.Count);
+        Assert.Equal(b1, sut.Tabs[0].RequestId);
+        Assert.Equal(c1, sut.Tabs[1].RequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_ActiveInClosedCollection_ReactivatesSurvivor()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var b1 = await SeedRequestInCollectionAsync("B", "GET /b1");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(b1);
+        sut.ActivateTab(a1);
+
+        sut.CloseTabsOfCollection(a1);
+
+        Assert.Single(sut.Tabs);
+        Assert.Equal(b1, sut.ActiveTab!.RequestId);
+        Assert.Equal(b1, _appState.SelectedRequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_ActiveInOtherCollection_KeepsActive()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var b1 = await SeedRequestInCollectionAsync("B", "GET /b1");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(b1);
+        sut.ActivateTab(b1);
+
+        sut.CloseTabsOfCollection(a1);
+
+        Assert.Single(sut.Tabs);
+        Assert.Equal(b1, sut.ActiveTab!.RequestId);
+        Assert.Equal(b1, _appState.SelectedRequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_AllTabsSameCollection_ClosesEverything()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var a2 = await SeedRequestInCollectionAsync("A", "GET /a2");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(a2);
+
+        sut.CloseTabsOfCollection(a1);
+
+        Assert.Empty(sut.Tabs);
+        Assert.Null(sut.ActiveTab);
+        Assert.Null(_appState.SelectedRequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_SingleTabCollection_ClosesOnlyThatTab()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var b1 = await SeedRequestInCollectionAsync("B", "GET /b1");
+        var c1 = await SeedRequestInCollectionAsync("C", "GET /c1");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(b1);
+        await sut.OpenTabAsync(c1);
+
+        sut.CloseTabsOfCollection(c1);
+
+        Assert.Equal(2, sut.Tabs.Count);
+        Assert.Equal(a1, sut.Tabs[0].RequestId);
+        Assert.Equal(b1, sut.Tabs[1].RequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsOfCollection_UnknownRequestId_NoOp()
+    {
+        var sut = CreateSut();
+        var a1 = await SeedRequestInCollectionAsync("A", "GET /a1");
+        var b1 = await SeedRequestInCollectionAsync("B", "GET /b1");
+        await sut.OpenTabAsync(a1);
+        await sut.OpenTabAsync(b1);
+
+        sut.CloseTabsOfCollection(99999);
+
+        Assert.Equal(2, sut.Tabs.Count);
+    }
 }
