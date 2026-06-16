@@ -38,6 +38,9 @@
                 &#8594;&nbsp;&nbsp;Fermer les onglets à droite
             </div>
         }
+        <div class="ctx-item" @onclick="() => CloseCollectionFromCtx(_ctxRequestId)">
+            &#9635;&nbsp;&nbsp;Fermer les onglets de la collection
+        </div>
         <div class="ctx-divider"></div>
         <div class="ctx-item danger" @onclick="CloseAllFromCtx">
             &#10005;&#10005;&nbsp;Fermer tous les onglets
@@ -75,6 +78,7 @@
     private void CloseFromCtx(int requestId)       { Tabs.CloseTab(requestId); HideContextMenu(); }
     private void CloseOthersFromCtx(int requestId) { Tabs.CloseOtherTabs(requestId); HideContextMenu(); }
     private void CloseRightFromCtx(int requestId)  { Tabs.CloseTabsToTheRight(requestId); HideContextMenu(); }
+    private void CloseCollectionFromCtx(int requestId) { Tabs.CloseTabsOfCollection(requestId); HideContextMenu(); }
     private void CloseAllFromCtx()                 { Tabs.CloseAllTabs(); HideContextMenu(); }
 
     private bool HasTabsToRightOf(int requestId)
