@@ -38,3 +38,6 @@ appsettings.*.json
 
 ## Claude
 .claude/
+
+## legion — battle artifacts are local-only (durable trace lives in the PR + issue)
+.legion/

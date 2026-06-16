@@ -91,6 +91,25 @@ public class TabManagerService(
         Notify();
     }
 
+    public void CloseTabsToTheRight(int requestId)
+    {
+        var idx = _tabs.FindIndex(t => t.RequestId == requestId);
+        if (idx < 0) return;
+
+        var toRemove = _tabs.Skip(idx + 1).ToList();
+        if (toRemove.Count == 0) return;
+
+        foreach (var t in toRemove) _tabs.Remove(t);
+
+        if (ActiveTab is null || !_tabs.Contains(ActiveTab))
+        {
+            ActiveTab = _tabs[idx];
+            appState.SelectedRequestId = ActiveTab.RequestId;
+        }
+        appState.NotifyChanged();
+        Notify();
+    }
+
     public void CloseAllTabs()
     {
         _tabs.Clear();

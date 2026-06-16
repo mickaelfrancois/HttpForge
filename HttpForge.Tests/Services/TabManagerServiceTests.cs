@@ -149,4 +149,125 @@ public class TabManagerServiceTests : IDisposable
         Assert.Null(sut.ActiveTab);
         Assert.Null(_appState.SelectedRequestId);
     }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_TargetIsFirst_RemovesAllToTheRight()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        var id3 = await SeedRequestAsync("GET /c");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+        await sut.OpenTabAsync(id3);
+
+        sut.CloseTabsToTheRight(id1);
+
+        Assert.Single(sut.Tabs);
+        Assert.Equal(id1, sut.Tabs[0].RequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_TargetInMiddle_KeepsLeftAndTarget()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        var id3 = await SeedRequestAsync("GET /c");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+        await sut.OpenTabAsync(id3);
+
+        sut.CloseTabsToTheRight(id2);
+
+        Assert.Equal(2, sut.Tabs.Count);
+        Assert.Equal(id1, sut.Tabs[0].RequestId);
+        Assert.Equal(id2, sut.Tabs[1].RequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_TargetIsLast_NoOp()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+
+        sut.CloseTabsToTheRight(id2);
+
+        Assert.Equal(2, sut.Tabs.Count);
+        Assert.Equal(id2, sut.ActiveTab!.RequestId);
+        Assert.Equal(id2, _appState.SelectedRequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_UnknownRequestId_NoOp()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+
+        sut.CloseTabsToTheRight(99999);
+
+        Assert.Equal(2, sut.Tabs.Count);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_ActiveWasToTheRight_ActivatesTarget()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        var id3 = await SeedRequestAsync("GET /c");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+        await sut.OpenTabAsync(id3);
+
+        sut.CloseTabsToTheRight(id1);
+
+        Assert.Single(sut.Tabs);
+        Assert.Equal(id1, sut.ActiveTab!.RequestId);
+        Assert.Equal(id1, _appState.SelectedRequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_ActiveToTheLeftOfTarget_KeepsActive()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        var id3 = await SeedRequestAsync("GET /c");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+        await sut.OpenTabAsync(id3);
+        sut.ActivateTab(id1);
+
+        sut.CloseTabsToTheRight(id2);
+
+        Assert.Equal(2, sut.Tabs.Count);
+        Assert.Equal(id1, sut.ActiveTab!.RequestId);
+        Assert.Equal(id1, _appState.SelectedRequestId);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_ActiveIsTarget_KeepsActive()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        var id3 = await SeedRequestAsync("GET /c");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+        await sut.OpenTabAsync(id3);
+        sut.ActivateTab(id2);
+
+        sut.CloseTabsToTheRight(id2);
+
+        Assert.Equal(2, sut.Tabs.Count);
+        Assert.Equal(id2, sut.ActiveTab!.RequestId);
+        Assert.Equal(id2, _appState.SelectedRequestId);
+    }
 }
