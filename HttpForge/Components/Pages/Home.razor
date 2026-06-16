@@ -6,6 +6,7 @@
 @inject ScriptRunner ScriptRunner
 @inject IJSRuntime JS
 @inject RequestSaveService SaveService
+@inject RequestAutoSaver AutoSaver
 @inject RequestChangeNotifier Notifier
 @inject TabManagerService Tabs
 @using HttpForge.Models
@@ -69,6 +70,16 @@ else
             {
                 <button class="save-btn" @onclick="() => SaveDraftAsync(false)">Save</button>
             }
+            <span class="autosave-status">
+                @if (tab.IsAutoSaving)
+                {
+                    <text>Enregistrement…</text>
+                }
+                else if (!tab.Draft.IsDirty && tab.LastSavedAt is DateTime savedAt)
+                {
+                    <text>Enregistré à @savedAt.ToLocalTime().ToString("HH:mm:ss")</text>
+                }
+            </span>
         </div>
 
         @{
@@ -202,8 +213,8 @@ else
                                   KeyOf="@(i => ((RequestVariable)i).Key)"
                                   ValueOf="@(i => ((RequestVariable)i).Value)"
                                   EnabledOf="@(_ => true)"
-                                  SetKey="@((i, v) => { ((RequestVariable)i).Key = v; tab.Draft.MarkDirty(); })"
-                                  SetValue="@((i, v) => { ((RequestVariable)i).Value = v; tab.Draft.MarkDirty(); })"
+                                  SetKey="@((i, v) => { ((RequestVariable)i).Key = v; MarkDirtyAndSchedule(tab); })"
+                                  SetValue="@((i, v) => { ((RequestVariable)i).Value = v; MarkDirtyAndSchedule(tab); })"
                                   SetEnabled="@((i, v) => { })"
                                   OnChanged="OnRequestVarChangedAsync"
                                   OnRemove="RemoveRequestVarAsync"
@@ -421,6 +432,7 @@ else
     private string? _reloadToast;
 
     private Action? _tabsOnChange;
+    private Action<int>? _tabRemoved;
 
     protected override async Task OnInitializedAsync()
     {
@@ -429,6 +441,10 @@ else
         _tabsOnChange = () => InvokeAsync(StateHasChanged);
         Tabs.OnChange += _tabsOnChange;
         Tabs.OnCloseRequested += OnTabCloseRequested;
+        // A closed tab must not keep a pending auto-save timer alive (no ghost write to a
+        // discarded draft). The DI-scoped AutoSaver is disposed with the circuit.
+        _tabRemoved = id => AutoSaver.Cancel(id);
+        Tabs.OnTabRemoved += _tabRemoved;
 
         await LoadEnvAsync();
     }
@@ -449,6 +465,11 @@ else
         Notifier.RequestSaved -= OnRequestSavedByOther;
         if (_tabsOnChange is not null) Tabs.OnChange -= _tabsOnChange;
         Tabs.OnCloseRequested -= OnTabCloseRequested;
+        if (_tabRemoved is not null) Tabs.OnTabRemoved -= _tabRemoved;
+        // Intentionally do NOT dispose AutoSaver here: it is DI-scoped (circuit lifetime),
+        // shared with TabManagerService, and disposed by the container at circuit end.
+        // Disposing it on component teardown would leave a re-created Home (internal
+        // navigation) with a disposed saver whose Schedule is a silent no-op.
         await Task.CompletedTask;
     }
 
@@ -550,12 +571,27 @@ else
 
     // ── Field mutators — write to the active tab's draft only ──────────────────
 
+    // Marks a tab dirty and (re)arms its debounced auto-save. The captured tab — not
+    // Active — is what the scheduled save targets, so a late timer never writes one tab's
+    // draft into another (mirrors the OnBodyChanged/OnPostScriptChanged guard).
+    private void MarkDirtyAndSchedule(TabState tab)
+    {
+        tab.Draft.MarkDirty();
+        AutoSaver.Schedule(tab.RequestId, _ => InvokeAsync(() => AutoSaveTabAsync(tab)));
+    }
+
+    private async Task AutoSaveTabAsync(TabState tab)
+    {
+        await SaveTabAsync(tab, forceOverwrite: false, isAuto: true);
+        StateHasChanged();
+    }
+
     private void OnNameInput(ChangeEventArgs e)
     {
         if (Active is null) return;
         Active.Draft.Name = e.Value?.ToString() ?? string.Empty;
         Active.Name = Active.Draft.Name;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
     }
 
     private void OnMethodChanged(ChangeEventArgs e)
@@ -565,7 +601,7 @@ else
         {
             Active.Draft.Method = m;
             Active.Method = m.ToString();
-            Active.Draft.MarkDirty();
+            MarkDirtyAndSchedule(Active);
         }
     }
 
@@ -573,14 +609,14 @@ else
     {
         if (Active is null) return;
         Active.Draft.Url = value;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
     }
 
     private void OnIgnoreTlsChanged(ChangeEventArgs e)
     {
         if (Active is null) return;
         Active.Draft.IgnoreTlsErrors = e.Value is true;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
     }
 
     // These two are fed by debounced CodeMirror callbacks that can land *after* a tab
@@ -589,7 +625,7 @@ else
     private void OnBodyChanged(TabState tab, string value)
     {
         tab.Draft.BodyContent = value;
-        tab.Draft.MarkDirty();
+        MarkDirtyAndSchedule(tab);
     }
 
     private void OnPostScriptChanged(TabState tab, string value)
@@ -598,16 +634,17 @@ else
         // Editing the script in the editor is an explicit authoring/review action, so the
         // script becomes trusted and may execute on the next send.
         tab.Draft.PostScriptTrusted = true;
-        tab.Draft.MarkDirty();
+        MarkDirtyAndSchedule(tab);
     }
 
     private async Task EnableScriptAsync()
     {
         if (Active is null) return;
         Active.Draft.PostScriptTrusted = true;
+        // Persist immediately (no debounce): mark dirty then save now. SaveDraftAsync
+        // reloads _request so the next send sees the script as trusted and runs it, and
+        // cancels any pending auto-save timer on success.
         Active.Draft.MarkDirty();
-        // Persist immediately; SaveDraftAsync reloads _request so the next send sees the
-        // script as trusted and runs it.
         await SaveDraftAsync(forceOverwrite: false);
     }
 
@@ -615,7 +652,7 @@ else
     {
         if (Active is null) return;
         Active.Draft.BodyKind = kind;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
     }
 
     // ── Child item methods — mutate draft, no DB ──────────────────────────────
@@ -623,7 +660,7 @@ else
     private Task SaveHeaderAsync(object item)
     {
         if (Active is null) return Task.CompletedTask;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
@@ -631,14 +668,14 @@ else
     {
         if (Active is null) return Task.CompletedTask;
         Active.Draft.Headers.Remove((HeaderItem)item);
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
     private Task SaveQueryParamAsync(object item)
     {
         if (Active is null) return Task.CompletedTask;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
@@ -646,14 +683,14 @@ else
     {
         if (Active is null) return Task.CompletedTask;
         Active.Draft.QueryParams.Remove((QueryParamItem)item);
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
     private Task SaveFormFieldAsync(object item)
     {
         if (Active is null) return Task.CompletedTask;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
@@ -661,7 +698,7 @@ else
     {
         if (Active is null) return Task.CompletedTask;
         Active.Draft.FormFields.Remove((FormFieldItem)item);
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
@@ -670,7 +707,7 @@ else
     private Task OnRequestVarChangedAsync(object item)
     {
         if (Active is null) return Task.CompletedTask;
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         return Task.CompletedTask;
     }
 
@@ -678,43 +715,73 @@ else
     {
         if (Active is null) return Task.CompletedTask;
         Active.Draft.Variables.Remove((RequestVariable)item);
-        Active.Draft.MarkDirty();
+        MarkDirtyAndSchedule(Active);
         RebuildVariables();
         return Task.CompletedTask;
     }
 
     // ── Save + modal handlers ─────────────────────────────────────────────────
 
-    private async Task SaveDraftAsync(bool forceOverwrite)
+    private Task SaveDraftAsync(bool forceOverwrite)
     {
         var tab = Active;
-        if (tab is null) return;
+        return tab is null ? Task.CompletedTask : SaveTabAsync(tab, forceOverwrite, isAuto: false);
+    }
 
+    // Saves a specific tab's draft. Targets the passed tab (not Active) so a debounced
+    // auto-save that lands after a tab switch always writes the draft it was armed for.
+    private async Task SaveTabAsync(TabState tab, bool forceOverwrite, bool isAuto)
+    {
+        // Auto-save only writes when there is something to write; a manual Save always runs.
+        if (isAuto && !tab.Draft.IsDirty) return;
+
+        tab.IsAutoSaving = true;
         var result = await SaveService.SaveAsync(tab.Draft, _originId, forceOverwrite);
 
         if (result.IsConflict)
         {
+            tab.IsAutoSaving = false;
+            // Auto-save must never overwrite another window's change: suspend this tab's
+            // timer (so it doesn't loop) and surface the existing conflict modal. Make the
+            // conflicting tab active so the modal's Écraser/Annuler act on it.
+            if (isAuto)
+            {
+                AutoSaver.Suspend(tab.RequestId);
+                if (!ReferenceEquals(Active, tab)) Tabs.ActivateTab(tab.RequestId);
+            }
             _conflictAt = result.ConflictAt;
             _showConflictModal = true;
             return;
         }
 
-        // Rebase the draft onto the version we just wrote so the next save doesn't
-        // falsely conflict with this one.
-        if (result.SavedAt is DateTime savedAt) tab.Draft.LoadedAt = savedAt;
+        // Rebase the draft onto the version we just wrote so the next save doesn't falsely
+        // conflict with this one, then drop any pending timer (the draft is now clean).
+        if (result.SavedAt is DateTime savedAt)
+        {
+            tab.Draft.LoadedAt = savedAt;
+            tab.LastSavedAt = savedAt;
+        }
         tab.Draft.ClearDirty();
-        await LoadActiveTabContextAsync();
+        tab.IsAutoSaving = false;
+        AutoSaver.Cancel(tab.RequestId);
+
+        if (ReferenceEquals(Active, tab))
+            await LoadActiveTabContextAsync();
     }
 
     private async Task OnSaveOverwriteAsync()
     {
         _showConflictModal = false;
+        // Conflict resolved: re-enable auto-save so future edits re-arm the debounce.
+        if (Active is not null) AutoSaver.Resume(Active.RequestId);
         await SaveDraftAsync(forceOverwrite: true);
     }
 
     private void OnCancelSave()
     {
         _showConflictModal = false;
+        // Leave the draft dirty, but re-enable auto-save so the next edit can retry.
+        if (Active is not null) AutoSaver.Resume(Active.RequestId);
     }
 
     private async Task SaveAndCloseAsync()

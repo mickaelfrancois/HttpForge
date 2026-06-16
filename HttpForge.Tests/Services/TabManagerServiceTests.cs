@@ -135,6 +135,61 @@ public class TabManagerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ForceCloseTab_FiresOnTabRemovedWithRequestId()
+    {
+        var sut = CreateSut();
+        var id = await SeedRequestAsync();
+        await sut.OpenTabAsync(id);
+
+        var removed = new List<int>();
+        sut.OnTabRemoved += removed.Add;
+
+        sut.ForceCloseTab(id);
+
+        Assert.Equal([id], removed);
+    }
+
+    [Fact]
+    public async Task CloseAllTabs_FiresOnTabRemovedForEveryTab()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+
+        var removed = new List<int>();
+        sut.OnTabRemoved += removed.Add;
+
+        sut.CloseAllTabs();
+
+        Assert.Equal(2, removed.Count);
+        Assert.Contains(id1, removed);
+        Assert.Contains(id2, removed);
+    }
+
+    [Fact]
+    public async Task CloseTabsToTheRight_FiresOnTabRemovedForClosedTabs()
+    {
+        var sut = CreateSut();
+        var id1 = await SeedRequestAsync("GET /a");
+        var id2 = await SeedRequestAsync("GET /b");
+        var id3 = await SeedRequestAsync("GET /c");
+        await sut.OpenTabAsync(id1);
+        await sut.OpenTabAsync(id2);
+        await sut.OpenTabAsync(id3);
+
+        var removed = new List<int>();
+        sut.OnTabRemoved += removed.Add;
+
+        sut.CloseTabsToTheRight(id1);
+
+        Assert.Equal(2, removed.Count);
+        Assert.Contains(id2, removed);
+        Assert.Contains(id3, removed);
+    }
+
+    [Fact]
     public async Task CloseAllTabs_ClearsAllTabsAndResetsAppState()
     {
         var sut = CreateSut();

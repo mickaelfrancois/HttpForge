@@ -24,6 +24,10 @@ public class TabManagerService(
 
     public event Action? OnChange;
     public event Func<TabState, Task>? OnCloseRequested;
+    // Raised once per tab as it is removed (single or bulk close). Lets listeners drop
+    // per-tab resources — e.g. cancel a pending auto-save timer — without coupling this
+    // service to the save pipeline.
+    public event Action<int>? OnTabRemoved;
 
     public async Task InitAsync(IJSRuntime js)
     {
@@ -88,6 +92,7 @@ public class TabManagerService(
         ActiveTab = _tabs.FirstOrDefault();
         appState.SelectedRequestId = ActiveTab?.RequestId;
         appState.NotifyChanged();
+        foreach (var t in toRemove) OnTabRemoved?.Invoke(t.RequestId);
         Notify();
     }
 
@@ -107,6 +112,7 @@ public class TabManagerService(
             appState.SelectedRequestId = ActiveTab.RequestId;
         }
         appState.NotifyChanged();
+        foreach (var t in toRemove) OnTabRemoved?.Invoke(t.RequestId);
         Notify();
     }
 
@@ -130,10 +136,12 @@ public class TabManagerService(
 
     public void CloseAllTabs()
     {
+        var removed = _tabs.Select(t => t.RequestId).ToList();
         _tabs.Clear();
         ActiveTab = null;
         appState.SelectedRequestId = null;
         appState.NotifyChanged();
+        foreach (var id in removed) OnTabRemoved?.Invoke(id);
         Notify();
     }
 
@@ -169,6 +177,7 @@ public class TabManagerService(
             appState.SelectedRequestId = ActiveTab?.RequestId;
             appState.NotifyChanged();
         }
+        OnTabRemoved?.Invoke(tab.RequestId);
         Notify();
     }
 

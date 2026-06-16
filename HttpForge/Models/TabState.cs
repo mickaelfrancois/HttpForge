@@ -16,4 +16,8 @@ public class TabState
     public ScriptResult? ScriptResult { get; set; }
     public bool IsSending { get; set; }
     public CancellationTokenSource? SendCts { get; set; }
+
+    // Auto-save status indicator (debounced background save).
+    public DateTime? LastSavedAt { get; set; }
+    public bool IsAutoSaving { get; set; }
 }
