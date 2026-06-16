@@ -255,6 +255,175 @@ public class RequestExecutorTests
         Assert.Contains("mytoken", values);
     }
 
+    // ── Default headers (collection-inherited) ─────────────────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_EnabledDefaultHeader_AddedToRequest()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem { Url = "https://example.com" };
+        IReadOnlyList<HeaderInput> defaults = [new("Accept", "application/json", true)];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("Accept", out var values));
+        Assert.Contains("application/json", values!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequestHeaderOverridesDefault_SameKey_OnlyRequestValueSent()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem
+        {
+            Url = "https://example.com",
+            Headers = [new HeaderItem { Key = "X-Api", Value = "request", Enabled = true }]
+        };
+        IReadOnlyList<HeaderInput> defaults = [new("X-Api", "default", true)];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Api", out var values));
+        Assert.Equal("request", Assert.Single(values!));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequestHeaderOverridesDefault_CaseInsensitiveKey()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem
+        {
+            Url = "https://example.com",
+            Headers = [new HeaderItem { Key = "X-API", Value = "request", Enabled = true }]
+        };
+        IReadOnlyList<HeaderInput> defaults = [new("x-api", "default", true)];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        // The case-insensitive merge collapses both to a single header carrying the
+        // request's value (header-name casing is irrelevant per HTTP).
+        var matching = handler.LastRequest!.Headers
+            .Where(h => string.Equals(h.Key, "x-api", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.Single(matching);
+        Assert.Equal("request", matching[0].Value.Single());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DisabledDefaultHeader_NotAdded()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem { Url = "https://example.com" };
+        IReadOnlyList<HeaderInput> defaults = [new("X-Api", "default", false)];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        Assert.False(handler.LastRequest!.Headers.Contains("X-Api"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DisabledDefaultHeader_DoesNotOverrideRequestHeader()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem
+        {
+            Url = "https://example.com",
+            Headers = [new HeaderItem { Key = "X-Api", Value = "request", Enabled = true }]
+        };
+        IReadOnlyList<HeaderInput> defaults = [new("X-Api", "default", false)];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Api", out var values));
+        Assert.Equal("request", Assert.Single(values!));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DefaultHeaderValueWithVariable_VariableResolved()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem { Url = "https://example.com" };
+        IReadOnlyList<HeaderInput> defaults = [new("Authorization", "Bearer {{token}}", true)];
+        var vars = new Dictionary<string, string> { ["token"] = "xyz" };
+
+        await sut.ExecuteAsync(req, vars, defaultHeaders: defaults);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("Authorization", out var values));
+        Assert.Contains("Bearer xyz", values!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NullDefaultHeaders_RequestHeaderStillSent()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem
+        {
+            Url = "https://example.com",
+            Headers = [new HeaderItem { Key = "X-Test", Value = "hello", Enabled = true }]
+        };
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: null);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Test", out var values));
+        Assert.Contains("hello", values!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EmptyDefaultHeaders_RequestHeaderStillSent()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem
+        {
+            Url = "https://example.com",
+            Headers = [new HeaderItem { Key = "X-Test", Value = "hello", Enabled = true }]
+        };
+        IReadOnlyList<HeaderInput> defaults = [];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Test", out var values));
+        Assert.Contains("hello", values!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DefaultsAndRequestHeaders_MergedOnePerKey()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem
+        {
+            Url = "https://example.com",
+            Headers =
+            [
+                new HeaderItem { Key = "X-B", Value = "req-b", Enabled = true },
+                new HeaderItem { Key = "X-C", Value = "req-c", Enabled = true }
+            ]
+        };
+        IReadOnlyList<HeaderInput> defaults =
+        [
+            new("X-A", "def-a", true),
+            new("X-B", "def-b", true)
+        ];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        var h = handler.LastRequest!.Headers;
+        Assert.Equal("def-a", h.GetValues("X-A").Single());   // default only
+        Assert.Equal("req-b", h.GetValues("X-B").Single());   // request overrides default
+        Assert.Equal("req-c", h.GetValues("X-C").Single());   // request only
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DefaultHeaderWithEmptyKey_Ignored()
+    {
+        var (sut, handler) = Create();
+        var req = new HttpRequestItem { Url = "https://example.com" };
+        IReadOnlyList<HeaderInput> defaults = [new("", "value", true)];
+
+        await sut.ExecuteAsync(req, NoVars, defaultHeaders: defaults);
+
+        Assert.Empty(handler.LastRequest!.Headers);
+    }
+
     // ── Result ───────────────────────────────────────────────────────────────
 
     [Fact]
@@ -323,6 +492,6 @@ public class RequestExecutorTests
         cts.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.ExecuteAsync(req, NoVars, cts.Token));
+            () => sut.ExecuteAsync(req, NoVars, ct: cts.Token));
     }
 }

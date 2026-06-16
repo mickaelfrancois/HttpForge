@@ -116,6 +116,26 @@ else
                                   EnvVariables="_resolvedVariables" />
                     break;
                 case "Headers":
+                    var inheritedHeaders = _collectionDefaultHeaders
+                        .Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Key))
+                        .ToList();
+                    if (inheritedHeaders.Count > 0)
+                    {
+                        <div class="inherited-headers">
+                            <div class="inherited-headers-title">Headers hérités de la collection (lecture seule)</div>
+                            @foreach (var h in inheritedHeaders)
+                            {
+                                <div class="inherited-header @(IsInheritedHeaderOverridden(tab.Draft, h.Key) ? "inherited-header--overridden" : "")">
+                                    <span class="inherited-header-key">@h.Key</span>
+                                    <span class="inherited-header-value" title="@Tooltip(h.Value)">@h.Value</span>
+                                    @if (IsInheritedHeaderOverridden(tab.Draft, h.Key))
+                                    {
+                                        <span class="inherited-header-badge" title="Écrasé par un header de cette requête">écrasé</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
                     <KeyValueGrid Items="tab.Draft.Headers"
                                   ItemCreator="@(() => new HeaderItem { HttpRequestItemId = tab.Draft.RequestId })"
                                   KeyOf="@(i => ((HeaderItem)i).Key)"
@@ -383,6 +403,9 @@ else
     private AppEnvironment? _globalSubset;
     private CollectionVariableSet? _collectionBase;
     private CollectionVariableSet? _collectionSubset;
+    // Default headers inherited from the active request's collection (read-only here;
+    // edited in NavMenu). Applied to every send via RequestExecutor.
+    private IReadOnlyList<CollectionDefaultHeader> _collectionDefaultHeaders = [];
     private IReadOnlyList<ResolvedVariableEntry> _resolvedVariables = Array.Empty<ResolvedVariableEntry>();
     private readonly string[] _subTabs = ["Params", "Headers", "Body", "Variables", "Scripts", "Options"];
 
@@ -476,6 +499,7 @@ else
             _request = null;
             _collectionBase = null;
             _collectionSubset = null;
+            _collectionDefaultHeaders = [];
             State.SelectedCollectionId = null;
             RebuildVariables();
             return;
@@ -491,6 +515,7 @@ else
 
         var collection = request is null ? null : await db.Collections
             .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
+            .Include(c => c.DefaultHeaders)
             .FirstOrDefaultAsync(c => c.Id == request.CollectionId);
 
         // A concurrent activate/close may have changed the active tab while we awaited;
@@ -501,6 +526,7 @@ else
         _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
             ? collection.VariableSets.FirstOrDefault(s => s.Id == sid && !s.IsBase)
             : null;
+        _collectionDefaultHeaders = collection?.DefaultHeaders.ToList() ?? [];
 
         State.SelectedCollectionId = request?.CollectionId;
         _request = request;
@@ -803,9 +829,15 @@ else
         tab.ScriptResult = null;
         StateHasChanged();
 
+        // Collection default headers are inherited at send time; the request's own headers
+        // override them by key (case-insensitive) inside RequestExecutor.
+        var defaultHeaders = _collectionDefaultHeaders
+            .Select(h => new HeaderInput(h.Key, h.Value, h.Enabled))
+            .ToList();
+
         try
         {
-            var result = await Executor.ExecuteAsync(request, vars, cts.Token);
+            var result = await Executor.ExecuteAsync(request, vars, defaultHeaders, cts.Token);
             tab.Result = result;
 
             if (result.Error is null && !string.IsNullOrWhiteSpace(request.PostScript))
@@ -936,6 +968,11 @@ else
 
     private static string Truncate(string s, int max) =>
         s.Length <= max ? s : s[..max] + "…";
+
+    // An inherited (collection-default) header is overridden when the request defines an
+    // enabled header with the same key (case-insensitive) — mirrors RequestExecutor's merge.
+    private static bool IsInheritedHeaderOverridden(RequestDraft draft, string key) =>
+        draft.Headers.Any(rh => rh.Enabled && string.Equals(rh.Key, key, StringComparison.OrdinalIgnoreCase));
 
     private static int Pct(long part, long total) =>
         total <= 0 ? 0 : (int)Math.Round(100.0 * part / total);

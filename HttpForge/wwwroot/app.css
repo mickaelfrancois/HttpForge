@@ -190,6 +190,29 @@ h1:focus {
 .team-hint { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
 .empty-hint { font-size: 0.85rem; color: var(--text-muted); margin: 0; font-style: italic; }
 
+/* Inherited (collection-default) headers — read-only display in the request Headers tab */
+.inherited-headers {
+    border: 1px dashed var(--border-main); border-radius: 4px;
+    background: var(--bg-surface); padding: 0.4rem 0.55rem; margin-bottom: 0.6rem;
+}
+.inherited-headers-title {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 0.35rem;
+}
+.inherited-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.82rem; color: var(--text-muted); padding: 0.12rem 0;
+}
+.inherited-header-key { font-weight: 600; min-width: 8rem; }
+.inherited-header-value { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inherited-header--overridden .inherited-header-key,
+.inherited-header--overridden .inherited-header-value { text-decoration: line-through; opacity: 0.6; }
+.inherited-header-badge {
+    font-size: 0.68rem; font-weight: 600; padding: 0.05rem 0.4rem;
+    border-radius: 999px; background: var(--bg-hover); color: var(--text-muted); white-space: nowrap;
+}
+.var-row-disabled input { opacity: 0.5; }
+
 /* Role badges */
 .role-badge {
     font-size: 0.72rem; font-weight: 600; padding: 0.15rem 0.5rem;

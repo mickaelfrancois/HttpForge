@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<RequestVariable> RequestVariables => Set<RequestVariable>();
     public DbSet<CollectionVariableSet> CollectionVariableSets => Set<CollectionVariableSet>();
     public DbSet<CollectionVariableEntry> CollectionVariableEntries => Set<CollectionVariableEntry>();
+    public DbSet<CollectionDefaultHeader> CollectionDefaultHeaders => Set<CollectionDefaultHeader>();
     public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
     public DbSet<AppSettings> Settings => Set<AppSettings>();
 
@@ -59,6 +60,12 @@ public class AppDbContext : DbContext
             .HasMany(s => s.Entries)
             .WithOne(e => e.VariableSet)
             .HasForeignKey(e => e.CollectionVariableSetId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<Collection>()
+            .HasMany(c => c.DefaultHeaders)
+            .WithOne()
+            .HasForeignKey(h => h.CollectionId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<HttpRequestItem>()

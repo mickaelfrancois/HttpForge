@@ -160,6 +160,11 @@
                                     @onclick="() => { ToggleCollVarEditor(c.Id); _openCollectionMenuId = null; }">
                                 <span>⚙</span> Variables de collection
                             </button>
+                            <button class="context-menu-item @(_collDefaultHeaderEditorOpen.Contains(c.Id) ? "active" : "")"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { ToggleCollDefaultHeaderEditor(c.Id); _openCollectionMenuId = null; }">
+                                <span>🏷</span> Headers par défaut
+                            </button>
                             <button class="context-menu-item"
                                     @onclick:stopPropagation
                                     @onclick="() => { StartAddFolder(c.Id); _openCollectionMenuId = null; }">
@@ -269,6 +274,32 @@
                     </div>
                 </div>
             }
+            @if (_collDefaultHeaderEditorOpen.Contains(c.Id))
+            {
+                <div class="env-editor">
+                    <div class="env-editor-header" title="Fermer le panneau" @onclick="() => ToggleCollDefaultHeaderEditor(c.Id)">
+                        <span>Headers par défaut</span>
+                        <span class="close-x">✕</span>
+                    </div>
+                    <div class="var-list">
+                        <div class="var-list-header"><span>Appliqués à toutes les requêtes de la collection</span></div>
+                        @foreach (var h in c.DefaultHeaders)
+                        {
+                            <div class="var-row @(h.Enabled ? "" : "var-row-disabled")">
+                                <input placeholder="header" value="@h.Key"
+                                       @oninput="e => OnDefaultHeaderKeyChanged(h, e)" />
+                                <input placeholder="value" value="@h.Value"
+                                       @oninput="e => OnDefaultHeaderValueChanged(h, e)" />
+                                <button class="icon-btn @(h.Enabled ? "active" : "")"
+                                        title="@(h.Enabled ? "Activé — cliquer pour désactiver" : "Désactivé — cliquer pour activer")"
+                                        @onclick="() => ToggleDefaultHeaderEnabled(h)">@(h.Enabled ? "✓" : "○")</button>
+                                <button class="icon-btn" @onclick="() => RemoveDefaultHeader(h)">✕</button>
+                            </div>
+                        }
+                        <button class="link-btn" @onclick="() => AddDefaultHeader(c.Id)">+ add default header</button>
+                    </div>
+                </div>
+            }
             @if (_expanded.Contains(c.Id) || !string.IsNullOrWhiteSpace(_filterText))
             {
                 <div class="request-list" data-drop="collection:@c.Id">
@@ -307,6 +338,7 @@
     private HashSet<int> _revealed = new();
     private HashSet<int> _collVarEditorOpen = new();
     private HashSet<int> _collVarEntryRevealed = new();
+    private HashSet<int> _collDefaultHeaderEditorOpen = new();
     private string? _importStatus;
     private bool _disposed;
     private int? _hoveredCollectionId;
@@ -470,6 +502,7 @@
         _collections = await db.Collections
             .Include(c => c.Requests)
             .Include(c => c.VariableSets).ThenInclude(s => s.Entries)
+            .Include(c => c.DefaultHeaders)
             .OrderBy(c => c.Name)
             .ToListAsync();
 
@@ -872,6 +905,61 @@
     {
         if (!_collVarEntryRevealed.Add(v.Id)) _collVarEntryRevealed.Remove(v.Id);
         StateHasChanged();
+    }
+
+    // ── Collection default headers ─────────────────────────────────────────────
+
+    private void ToggleCollDefaultHeaderEditor(int collectionId)
+    {
+        if (!_collDefaultHeaderEditorOpen.Add(collectionId))
+            _collDefaultHeaderEditorOpen.Remove(collectionId);
+    }
+
+    private async Task AddDefaultHeader(int collectionId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionDefaultHeaders.Add(new CollectionDefaultHeader { CollectionId = collectionId });
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+        await ReloadAsync();
+    }
+
+    private async Task OnDefaultHeaderKeyChanged(CollectionDefaultHeader h, ChangeEventArgs e)
+    {
+        h.Key = e.Value?.ToString() ?? "";
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionDefaultHeaders.Update(h);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task OnDefaultHeaderValueChanged(CollectionDefaultHeader h, ChangeEventArgs e)
+    {
+        h.Value = e.Value?.ToString() ?? "";
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionDefaultHeaders.Update(h);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task ToggleDefaultHeaderEnabled(CollectionDefaultHeader h)
+    {
+        h.Enabled = !h.Enabled;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionDefaultHeaders.Update(h);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task RemoveDefaultHeader(CollectionDefaultHeader h)
+    {
+        var label = string.IsNullOrWhiteSpace(h.Key) ? "(empty)" : h.Key;
+        if (!await Confirm($"Delete default header \"{label}\"?")) return;
+        using var db = await DbFactory.CreateDbContextAsync();
+        db.CollectionDefaultHeaders.Remove(await db.CollectionDefaultHeaders.FirstAsync(x => x.Id == h.Id));
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+        await ReloadAsync();
     }
 
     private bool CollectionHasMatch(Collection c)

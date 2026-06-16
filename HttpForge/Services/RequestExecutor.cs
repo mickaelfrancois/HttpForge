@@ -30,6 +30,10 @@ public record ExecutionResult(
     string? Error,
     RequestTiming? Timing = null);
 
+// A neutral header input (key/value/enabled) decoupled from any EF entity, used to feed
+// collection default headers into ExecuteAsync without dragging the HeaderItem FK along.
+public readonly record struct HeaderInput(string Key, string Value, bool Enabled);
+
 public class RequestExecutor
 {
     private readonly VariableResolver _resolver;
@@ -44,9 +48,13 @@ public class RequestExecutor
         _handlerFactory = handlerFactory;
     }
 
+    // defaultHeaders: collection-inherited headers applied as the merge base; the request's
+    // own headers override them by key (case-insensitive). CancellationToken stays last per
+    // .NET convention.
     public async Task<ExecutionResult> ExecuteAsync(
         HttpRequestItem request,
         IReadOnlyDictionary<string, string> variables,
+        IReadOnlyList<HeaderInput>? defaultHeaders = null,
         CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
@@ -61,10 +69,25 @@ public class RequestExecutor
             HttpContent? content = BuildContent(request, variables);
             if (content is not null) msg.Content = content;
 
+            // Merge collection default headers (base) with request headers (which override
+            // by key, case-insensitive) — mirroring AppState.BuildVariables. Disabled /
+            // empty-key entries are filtered out BEFORE the merge, so a disabled default
+            // neither gets sent nor masks a request header of the same key. The dictionary
+            // guarantees exactly one header per key; keys/values are compared raw (unresolved)
+            // and only resolved when written to the message.
+            var mergedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (defaultHeaders is not null)
+                foreach (var h in defaultHeaders.Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Key)))
+                    mergedHeaders[h.Key] = h.Value;
+
             foreach (var h in request.Headers.Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Key)))
+                mergedHeaders[h.Key] = h.Value;
+
+            foreach (var (rawKey, rawValue) in mergedHeaders)
             {
-                var key = _resolver.Resolve(h.Key, variables);
-                var value = _resolver.Resolve(h.Value, variables);
+                var key = _resolver.Resolve(rawKey, variables);
+                var value = _resolver.Resolve(rawValue, variables);
                 if (!msg.Headers.TryAddWithoutValidation(key, value))
                 {
                     msg.Content?.Headers.TryAddWithoutValidation(key, value);
