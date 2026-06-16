@@ -32,6 +32,12 @@
         <div class="ctx-item" @onclick="() => CloseOthersFromCtx(_ctxRequestId)">
             &#9647;&nbsp;&nbsp;Fermer les autres
         </div>
+        @if (HasTabsToRightOf(_ctxRequestId))
+        {
+            <div class="ctx-item" @onclick="() => CloseRightFromCtx(_ctxRequestId)">
+                &#8594;&nbsp;&nbsp;Fermer les onglets à droite
+            </div>
+        }
         <div class="ctx-divider"></div>
         <div class="ctx-item danger" @onclick="CloseAllFromCtx">
             &#10005;&#10005;&nbsp;Fermer tous les onglets
@@ -68,5 +74,14 @@
 
     private void CloseFromCtx(int requestId)       { Tabs.CloseTab(requestId); HideContextMenu(); }
     private void CloseOthersFromCtx(int requestId) { Tabs.CloseOtherTabs(requestId); HideContextMenu(); }
+    private void CloseRightFromCtx(int requestId)  { Tabs.CloseTabsToTheRight(requestId); HideContextMenu(); }
     private void CloseAllFromCtx()                 { Tabs.CloseAllTabs(); HideContextMenu(); }
+
+    private bool HasTabsToRightOf(int requestId)
+    {
+        var tabs = Tabs.Tabs;
+        for (var i = 0; i < tabs.Count - 1; i++)
+            if (tabs[i].RequestId == requestId) return true;
+        return false;
+    }
 }
