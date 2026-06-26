@@ -141,6 +141,12 @@
     letter-spacing: 0.5px;
 }
 
+.import-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
 .import-status {
     padding: 0.2rem 1rem 0.4rem;
     font-size: 0.72rem;
