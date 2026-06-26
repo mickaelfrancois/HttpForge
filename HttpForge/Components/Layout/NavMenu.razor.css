@@ -147,6 +147,13 @@
     align-items: center;
 }
 
+/* Transparent full-screen catcher: a click outside the import menu closes it. */
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+}
+
 .import-status {
     padding: 0.2rem 1rem 0.4rem;
     font-size: 0.72rem;

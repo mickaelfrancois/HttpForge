@@ -103,10 +103,11 @@
                 @onclick="() => _showImportMenu = !_showImportMenu">↓ Import ▾</button>
         @if (_showImportMenu)
         {
+            <div class="menu-backdrop" @onclick="() => _showImportMenu = false"></div>
             <div class="context-menu">
                 <label class="context-menu-item">
                     <span>📥</span> Insomnia (YAML)
-                    <InputFile accept=".yaml" multiple OnChange="OnImportFiles" style="display:none" />
+                    <InputFile accept=".yaml,.yml" multiple OnChange="OnImportFiles" style="display:none" />
                 </label>
                 <label class="context-menu-item">
                     <span>📥</span> OpenAPI / Swagger — fichier

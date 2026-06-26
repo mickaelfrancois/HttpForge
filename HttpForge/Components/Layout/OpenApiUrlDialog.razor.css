@@ -61,6 +61,11 @@
     color: var(--text-primary);
 }
 
+.oa-dialog-cancel:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 .oa-dialog-primary {
     background: var(--accent-orange, #d8772b);
     color: #fff;
