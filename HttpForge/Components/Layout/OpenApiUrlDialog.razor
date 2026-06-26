@@ -1,0 +1,80 @@
+@* Modal dialog to import an OpenAPI/Swagger spec from a URL. Presentational only:
+   the parent owns the fetch and drives Visible/Busy/Error. *@
+
+@if (Visible)
+{
+    <div class="oa-dialog-overlay" @onclick="Cancel">
+        <div class="oa-dialog" @onclick:stopPropagation>
+            <div class="oa-dialog-title">Importer depuis une URL OpenAPI/Swagger</div>
+            <input class="oa-dialog-input"
+                   placeholder="https://.../swagger.json"
+                   @bind="_url" @bind:event="oninput"
+                   @onkeyup="OnKey"
+                   disabled="@Busy"
+                   @ref="_inputRef" />
+            @if (!string.IsNullOrEmpty(Error))
+            {
+                <div class="oa-dialog-error">@Error</div>
+            }
+            <div class="oa-dialog-actions">
+                <button class="oa-dialog-cancel" @onclick="Cancel" disabled="@Busy">Annuler</button>
+                <button class="oa-dialog-primary"
+                        @onclick="Submit"
+                        disabled="@(Busy || string.IsNullOrWhiteSpace(_url))">
+                    @(Busy ? "Import…" : "Importer")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback<string> OnImport { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _url = string.Empty;
+    private bool _wasVisible;
+    private bool _focusQueued;
+    private ElementReference _inputRef;
+
+    protected override void OnParametersSet()
+    {
+        // Reset the field and queue focus each time the dialog opens.
+        if (Visible && !_wasVisible)
+        {
+            _url = string.Empty;
+            _focusQueued = true;
+        }
+        _wasVisible = Visible;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusQueued && Visible)
+        {
+            _focusQueued = false;
+            try { await _inputRef.FocusAsync(); } catch { /* element gone: ignore */ }
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (Busy || string.IsNullOrWhiteSpace(_url)) return;
+        await OnImport.InvokeAsync(_url.Trim());
+    }
+
+    private async Task Cancel()
+    {
+        if (Busy) return;
+        await OnCancel.InvokeAsync();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Submit();
+        else if (e.Key == "Escape") await Cancel();
+    }
+}

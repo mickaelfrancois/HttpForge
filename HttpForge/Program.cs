@@ -42,6 +42,8 @@ builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlite($"Data Sourc
 builder.Services.AddScoped<VariableResolver>();
 builder.Services.AddScoped(sp => new RequestExecutor(sp.GetRequiredService<VariableResolver>()));
 builder.Services.AddScoped<InsomniaImporter>();
+builder.Services.AddScoped<OpenApiImporter>();
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<ScriptRunner>();
 builder.Services.AddSingleton<RequestChangeNotifier>();

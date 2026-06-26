@@ -3,6 +3,8 @@
 @inject AppState State
 @inject IJSRuntime JS
 @inject InsomniaImporter Importer
+@inject OpenApiImporter OpenApiImporter
+@inject IHttpClientFactory HttpClientFactory
 @inject TabManagerService Tabs
 @implements IDisposable
 
@@ -96,6 +98,28 @@
 
 <div class="section-title">
     <span>Collections</span>
+    <div class="import-wrap">
+        <button class="icon-btn @(_showImportMenu ? "active" : "")" title="Import"
+                @onclick="() => _showImportMenu = !_showImportMenu">↓ Import ▾</button>
+        @if (_showImportMenu)
+        {
+            <div class="menu-backdrop" @onclick="() => _showImportMenu = false"></div>
+            <div class="context-menu">
+                <label class="context-menu-item">
+                    <span>📥</span> Insomnia (YAML)
+                    <InputFile accept=".yaml,.yml" multiple OnChange="OnImportFiles" style="display:none" />
+                </label>
+                <label class="context-menu-item">
+                    <span>📥</span> OpenAPI / Swagger — fichier
+                    <InputFile accept=".json,.yaml,.yml" multiple OnChange="OnImportOpenApiFiles" style="display:none" />
+                </label>
+                <button class="context-menu-item"
+                        @onclick="() => { _showOpenApiUrl = true; _urlError = null; _showImportMenu = false; }">
+                    <span>🔗</span> OpenAPI / Swagger — URL
+                </button>
+            </div>
+        }
+    </div>
 </div>
 
 @if (_importStatus is not null)
@@ -120,12 +144,14 @@
     {
         <button class="icon-btn" title="Clear filter" @onclick="() => _filterText = string.Empty">✕</button>
     }
-    <label class="icon-btn" title="Import Insomnia YAML file(s)">
-        ↓
-        <InputFile accept=".yaml" multiple OnChange="OnImportFiles" style="display:none" />
-    </label>
     <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
 </div>
+
+<OpenApiUrlDialog Visible="_showOpenApiUrl"
+                  Busy="_urlImporting"
+                  Error="_urlError"
+                  OnImport="ImportOpenApiUrl"
+                  OnCancel="CancelUrlDialog" />
 
 <div class="collection-tree">
     @foreach (var c in _collections.Where(c => CollectionHasMatch(c)))
@@ -333,6 +359,10 @@
     private string _filterText = string.Empty;
     private bool _showAddCollection;
     private string _newCollectionName = string.Empty;
+    private bool _showImportMenu;
+    private bool _showOpenApiUrl;
+    private bool _urlImporting;
+    private string? _urlError;
     private bool _showEnvEditor;
     private string _newEnvName = string.Empty;
     private HashSet<int> _revealed = new();
@@ -568,6 +598,7 @@
 
     private async Task OnImportFiles(InputFileChangeEventArgs e)
     {
+        _showImportMenu = false;
         _importStatus = null;
         int totalCollections = 0;
         int totalRequests = 0;
@@ -614,6 +645,128 @@
             if (!_disposed)
                 InvokeAsync(() => { _importStatus = null; StateHasChanged(); });
         }, TaskScheduler.Default);
+    }
+
+    private async Task OnImportOpenApiFiles(InputFileChangeEventArgs e)
+    {
+        _showImportMenu = false;
+        _importStatus = null;
+        int collections = 0, requests = 0, folders = 0;
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        foreach (var file in e.GetMultipleFiles(maximumFileCount: 20))
+        {
+            try
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                var result = await OpenApiImporter.ImportFileAsync(stream, file.Name);
+                if (result.RequestsCreated > 0 || result.FoldersCreated > 0) collections++;
+                requests += result.RequestsCreated;
+                folders += result.FoldersCreated;
+                foreach (var w in result.Warnings) warnings.Add($"{file.Name}: {w}");
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{file.Name}: {ex.Message}");
+            }
+        }
+
+        await ReportImportAsync(collections, folders, requests, errors, warnings);
+    }
+
+    private async Task ImportOpenApiUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+
+        _urlError = null;
+        _urlImporting = true;
+
+        // http(s) only; on failure the dialog stays open and shows a readable error
+        // (never an unhandled exception). The download is size- and time-bounded.
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            _urlError = "URL invalide (http/https attendu).";
+            _urlImporting = false;
+            return;
+        }
+
+        int collections = 0, requests = 0, folders = 0;
+        var warnings = new List<string>();
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            await using var network = await response.Content.ReadAsStreamAsync();
+            using var buffer = new MemoryStream();
+            await CopyBoundedAsync(network, buffer, 10 * 1024 * 1024);
+            buffer.Position = 0;
+
+            var name = uri.Segments.LastOrDefault() is { Length: > 1 } segment ? segment : uri.Host;
+            var result = await OpenApiImporter.ImportFileAsync(buffer, name);
+            if (result.RequestsCreated > 0 || result.FoldersCreated > 0) collections++;
+            requests += result.RequestsCreated;
+            folders += result.FoldersCreated;
+            foreach (var w in result.Warnings) warnings.Add($"{name}: {w}");
+        }
+        catch (Exception ex)
+        {
+            _urlError = $"Échec de l'import : {ex.Message}";
+            _urlImporting = false;
+            return;
+        }
+
+        _urlImporting = false;
+        _showOpenApiUrl = false;
+        await ReportImportAsync(collections, folders, requests, [], warnings);
+    }
+
+    private void CancelUrlDialog()
+    {
+        _showOpenApiUrl = false;
+        _urlError = null;
+    }
+
+    // Shared status + reload tail for the OpenAPI imports (file and URL).
+    private async Task ReportImportAsync(int collections, int folders, int requests, List<string> errors, List<string> warnings)
+    {
+        if (errors.Count > 0)
+            _importStatus = $"Import error: {string.Join("; ", errors)}";
+        else
+        {
+            _importStatus = $"Imported: {collections} collection(s), {folders} folder(s), {requests} request(s)";
+            if (warnings.Count > 0)
+                _importStatus += $" — ⚠ {string.Join("; ", warnings)}";
+        }
+
+        await ReloadAsync();
+        State.NotifyChanged();
+        await InvokeAsync(StateHasChanged);
+
+        _ = Task.Delay(5000).ContinueWith(_ =>
+        {
+            if (!_disposed)
+                InvokeAsync(() => { _importStatus = null; StateHasChanged(); });
+        }, TaskScheduler.Default);
+    }
+
+    // Copies at most maxBytes; throws past the cap so an oversized download cannot exhaust memory.
+    private static async Task CopyBoundedAsync(Stream source, Stream destination, long maxBytes)
+    {
+        var buffer = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = await source.ReadAsync(buffer)) > 0)
+        {
+            total += read;
+            if (total > maxBytes)
+                throw new InvalidOperationException($"Réponse trop volumineuse (> {maxBytes / (1024 * 1024)} Mo).");
+            await destination.WriteAsync(buffer.AsMemory(0, read));
+        }
     }
 
     private async Task OnNewCollectionKey(KeyboardEventArgs e)

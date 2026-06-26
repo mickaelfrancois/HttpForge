@@ -1,0 +1,82 @@
+.oa-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.oa-dialog {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 6px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    width: min(440px, 90vw);
+    padding: 1.1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.oa-dialog-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.oa-dialog-input {
+    width: 100%;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.85rem;
+}
+
+.oa-dialog-error {
+    color: var(--accent-red, #e05252);
+    font-size: 0.78rem;
+}
+
+.oa-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
+}
+
+.oa-dialog-cancel {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.6rem;
+}
+
+.oa-dialog-cancel:hover {
+    color: var(--text-primary);
+}
+
+.oa-dialog-cancel:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.oa-dialog-primary {
+    background: var(--accent-orange, #d8772b);
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.oa-dialog-primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
