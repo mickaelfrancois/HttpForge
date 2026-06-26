@@ -288,6 +288,11 @@
     text-decoration: underline;
 }
 
+.link-btn:hover:not(:disabled) {
+    background: none;
+    text-decoration: none;
+}
+
 button {
     background: var(--accent-blue);
     color: #fff;
