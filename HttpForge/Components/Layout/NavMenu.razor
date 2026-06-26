@@ -113,7 +113,7 @@
                     <InputFile accept=".json,.yaml,.yml" multiple OnChange="OnImportOpenApiFiles" style="display:none" />
                 </label>
                 <button class="context-menu-item"
-                        @onclick="() => { _showOpenApiUrl = true; _showImportMenu = false; }">
+                        @onclick="() => { _showOpenApiUrl = true; _urlError = null; _showImportMenu = false; }">
                     <span>🔗</span> OpenAPI / Swagger — URL
                 </button>
             </div>
@@ -146,14 +146,11 @@
     <button class="icon-btn" title="New collection" @onclick="StartAddCollection">+</button>
 </div>
 
-@if (_showOpenApiUrl)
-{
-    <div class="inline-add">
-        <input placeholder="https://.../swagger.json" @bind="_openApiUrl" @bind:event="oninput" @onkeyup="OnOpenApiUrlKey" />
-        <button @onclick="ImportOpenApiUrl" disabled="@string.IsNullOrWhiteSpace(_openApiUrl)">Import</button>
-        <button class="link-btn" @onclick="() => _showOpenApiUrl = false">cancel</button>
-    </div>
-}
+<OpenApiUrlDialog Visible="_showOpenApiUrl"
+                  Busy="_urlImporting"
+                  Error="_urlError"
+                  OnImport="ImportOpenApiUrl"
+                  OnCancel="CancelUrlDialog" />
 
 <div class="collection-tree">
     @foreach (var c in _collections.Where(c => CollectionHasMatch(c)))
@@ -363,7 +360,8 @@
     private string _newCollectionName = string.Empty;
     private bool _showImportMenu;
     private bool _showOpenApiUrl;
-    private string _openApiUrl = string.Empty;
+    private bool _urlImporting;
+    private string? _urlError;
     private bool _showEnvEditor;
     private string _newEnvName = string.Empty;
     private HashSet<int> _revealed = new();
@@ -676,59 +674,60 @@
         await ReportImportAsync(collections, folders, requests, errors, warnings);
     }
 
-    private async Task ImportOpenApiUrl()
+    private async Task ImportOpenApiUrl(string url)
     {
-        var url = _openApiUrl?.Trim();
         if (string.IsNullOrWhiteSpace(url)) return;
 
-        _importStatus = null;
-        int collections = 0, requests = 0, folders = 0;
-        var errors = new List<string>();
-        var warnings = new List<string>();
+        _urlError = null;
+        _urlImporting = true;
 
-        // http(s) only; network failures surface as a readable status, never an unhandled
-        // exception (acceptance criterion #3). The download is size- and time-bounded.
+        // http(s) only; on failure the dialog stays open and shows a readable error
+        // (never an unhandled exception). The download is size- and time-bounded.
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            errors.Add($"{url}: URL invalide (http/https attendu).");
+            _urlError = "URL invalide (http/https attendu).";
+            _urlImporting = false;
+            return;
         }
-        else
+
+        int collections = 0, requests = 0, folders = 0;
+        var warnings = new List<string>();
+        try
         {
-            try
-            {
-                var client = HttpClientFactory.CreateClient();
-                client.Timeout = TimeSpan.FromSeconds(30);
-                using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
+            var client = HttpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
 
-                await using var network = await response.Content.ReadAsStreamAsync();
-                using var buffer = new MemoryStream();
-                await CopyBoundedAsync(network, buffer, 10 * 1024 * 1024);
-                buffer.Position = 0;
+            await using var network = await response.Content.ReadAsStreamAsync();
+            using var buffer = new MemoryStream();
+            await CopyBoundedAsync(network, buffer, 10 * 1024 * 1024);
+            buffer.Position = 0;
 
-                var name = uri.Segments.LastOrDefault() is { Length: > 1 } segment ? segment : uri.Host;
-                var result = await OpenApiImporter.ImportFileAsync(buffer, name);
-                if (result.RequestsCreated > 0 || result.FoldersCreated > 0) collections++;
-                requests += result.RequestsCreated;
-                folders += result.FoldersCreated;
-                foreach (var w in result.Warnings) warnings.Add($"{name}: {w}");
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"{url}: {ex.Message}");
-            }
+            var name = uri.Segments.LastOrDefault() is { Length: > 1 } segment ? segment : uri.Host;
+            var result = await OpenApiImporter.ImportFileAsync(buffer, name);
+            if (result.RequestsCreated > 0 || result.FoldersCreated > 0) collections++;
+            requests += result.RequestsCreated;
+            folders += result.FoldersCreated;
+            foreach (var w in result.Warnings) warnings.Add($"{name}: {w}");
+        }
+        catch (Exception ex)
+        {
+            _urlError = $"Échec de l'import : {ex.Message}";
+            _urlImporting = false;
+            return;
         }
 
+        _urlImporting = false;
         _showOpenApiUrl = false;
-        _openApiUrl = string.Empty;
-        await ReportImportAsync(collections, folders, requests, errors, warnings);
+        await ReportImportAsync(collections, folders, requests, [], warnings);
     }
 
-    private async Task OnOpenApiUrlKey(KeyboardEventArgs e)
+    private void CancelUrlDialog()
     {
-        if (e.Key == "Enter") await ImportOpenApiUrl();
-        else if (e.Key == "Escape") _showOpenApiUrl = false;
+        _showOpenApiUrl = false;
+        _urlError = null;
     }
 
     // Shared status + reload tail for the OpenAPI imports (file and URL).
