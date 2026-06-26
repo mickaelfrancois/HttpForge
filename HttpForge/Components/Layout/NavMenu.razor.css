@@ -53,6 +53,8 @@
     border: 1px solid var(--border-main);
     border-radius: 4px;
     padding: 0.5rem;
+    max-height: 40vh;
+    overflow-y: auto;
 }
 
 .env-editor-header {
@@ -284,6 +286,11 @@
     font-size: 0.75rem;
     padding: 0;
     text-decoration: underline;
+}
+
+.link-btn:hover:not(:disabled) {
+    background: none;
+    text-decoration: none;
 }
 
 button {
