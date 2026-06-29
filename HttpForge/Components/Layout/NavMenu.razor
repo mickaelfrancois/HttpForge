@@ -160,6 +160,19 @@
             <div class="collection-header"
                  @onmouseenter="() => _hoveredCollectionId = c.Id"
                  @onmouseleave="() => { _hoveredCollectionId = null; _openCollectionMenuId = null; }">
+                @if (_renamingCollectionId == c.Id)
+                {
+                    <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
+                    <input class="collection-rename-input"
+                           @ref="_collectionRenameInput"
+                           value="@_renameCollectionValue"
+                           @oninput="e => _renameCollectionValue = e.Value?.ToString() ?? string.Empty"
+                           @onblur="() => CommitRenameCollection(c)"
+                           @onkeydown="e => OnCollectionRenameKeyDown(c, e)"
+                           @onclick:stopPropagation />
+                }
+                else
+                {
                 <button class="collection-toggle" @onclick="() => ToggleCollection(c.Id)">
                     <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
                     <span>@c.Name</span>
@@ -201,6 +214,11 @@
                                     @onclick="() => { _ = AddRequest(c); _openCollectionMenuId = null; }">
                                 <span>＋</span> Nouvelle requête
                             </button>
+                            <button class="context-menu-item"
+                                    @onclick:stopPropagation
+                                    @onclick="() => { StartRenameCollection(c); _openCollectionMenuId = null; }">
+                                <span>✏</span> Renommer
+                            </button>
                             <button class="context-menu-item danger"
                                     @onclick:stopPropagation
                                     @onclick="() => { _ = DeleteCollection(c); _openCollectionMenuId = null; }">
@@ -209,6 +227,7 @@
                         </div>
                     }
                 </div>
+                }
             </div>
             @if (_showAddFolder && _addingFolderCollectionId == c.Id)
             {
@@ -373,6 +392,10 @@
     private bool _disposed;
     private int? _hoveredCollectionId;
     private int? _openCollectionMenuId;
+    private int? _renamingCollectionId;
+    private string _renameCollectionValue = string.Empty;
+    private bool _shouldFocusCollectionRename;
+    private ElementReference _collectionRenameInput;
     private DotNetObjectReference<NavMenu>? _dndRef;
 
     protected override async Task OnInitializedAsync()
@@ -388,6 +411,12 @@
         {
             _dndRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("forge.dnd.init", _dndRef);
+        }
+
+        if (_shouldFocusCollectionRename && _renamingCollectionId.HasValue)
+        {
+            _shouldFocusCollectionRename = false;
+            try { await _collectionRenameInput.FocusAsync(); } catch { }
         }
     }
 
@@ -787,6 +816,40 @@
         _newCollectionName = string.Empty;
         _showAddCollection = false;
         await ReloadAsync();
+    }
+
+    private void StartRenameCollection(Collection c)
+    {
+        _renamingCollectionId = c.Id;
+        _renameCollectionValue = c.Name;
+        _shouldFocusCollectionRename = true;
+    }
+
+    private void CancelRenameCollection()
+    {
+        _renamingCollectionId = null;
+        _renameCollectionValue = string.Empty;
+    }
+
+    private async Task OnCollectionRenameKeyDown(Collection c, KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CommitRenameCollection(c);
+        else if (e.Key == "Escape") CancelRenameCollection();
+    }
+
+    private async Task CommitRenameCollection(Collection c)
+    {
+        if (_renamingCollectionId != c.Id) return;
+        var name = _renameCollectionValue.Trim();
+        _renamingCollectionId = null;
+        if (string.IsNullOrWhiteSpace(name) || name == c.Name) return;
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        var col = await db.Collections.FirstAsync(x => x.Id == c.Id);
+        col.Name = name;
+        await db.SaveChangesAsync();
+        await ReloadAsync();
+        State.NotifyChanged();
     }
 
     private async Task DeleteCollection(Collection c)
