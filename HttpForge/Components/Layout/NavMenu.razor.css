@@ -215,6 +215,11 @@
     color: var(--text-muted);
 }
 
+.collection-icon {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
 .collection-rename-input {
     flex: 1;
     font-size: 0.85rem;

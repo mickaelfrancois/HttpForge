@@ -175,6 +175,7 @@
                 {
                 <button class="collection-toggle" @onclick="() => ToggleCollection(c.Id)">
                     <span class="caret">@(_expanded.Contains(c.Id) ? "▾" : "▸")</span>
+                    <span class="collection-icon">📦</span>
                     <span>@c.Name</span>
                     @{
                         var activeBadgeSet = c.VariableSets.FirstOrDefault(s => s.Id == c.ActiveCollectionVariableSetId);
