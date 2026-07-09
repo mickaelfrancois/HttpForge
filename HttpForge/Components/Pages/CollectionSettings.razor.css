@@ -1,0 +1,162 @@
+.cs-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+    gap: 0.75rem;
+}
+
+.cs-empty {
+    padding: 2rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.cs-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cs-title-icon {
+    font-size: 1.1rem;
+}
+
+.cs-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.cs-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--border-main);
+}
+
+.cs-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 0;
+}
+
+.cs-tab:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.cs-tab.active {
+    color: var(--text-brand);
+    border-bottom-color: var(--accent-orange);
+}
+
+.cs-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 720px;
+}
+
+.cs-headers-hint {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+}
+
+/* Variable editor — self-contained (NavMenu's scoped styles do not reach here). */
+.var-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.cs-subset-block {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-main);
+}
+
+.var-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-bottom: 0.2rem;
+}
+
+.var-row {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.var-row input {
+    flex: 1;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.82rem;
+    min-width: 0;
+}
+
+.cs-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.cs-row select {
+    flex: 1;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-input);
+    border-radius: 3px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+.icon-btn:hover {
+    background: var(--bg-btn-hover);
+    color: var(--text-brand);
+}
+
+.icon-btn.active {
+    color: var(--accent-orange);
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: var(--text-link);
+    cursor: pointer;
+    font-size: 0.78rem;
+    padding: 0;
+    text-decoration: underline;
+    align-self: flex-start;
+}
+
+.link-btn:hover {
+    text-decoration: none;
+}

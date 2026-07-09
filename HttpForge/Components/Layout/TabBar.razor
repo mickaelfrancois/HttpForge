@@ -4,21 +4,35 @@
 <div class="tab-bar" @oncontextmenu:preventDefault>
     @foreach (var tab in Tabs.Tabs)
     {
-        var isActive = tab.RequestId == Tabs.ActiveTab?.RequestId;
-        var isDirty = tab.Draft.IsDirty;
-        <div class="tab @(isActive ? "active" : "") @(isDirty ? "dirty" : "")"
-             @onclick="() => Tabs.ActivateTab(tab.RequestId)"
-             @oncontextmenu="(e) => ShowContextMenu(e, tab.RequestId)">
-            <span class="method-badge method-@tab.Method.ToLowerInvariant()">@tab.Method</span>
-            @if (isDirty)
-            {
-                <span class="tab-dirty">&#10033;</span>
-            }
-            <span class="tab-name" title="@tab.Name">@tab.Name</span>
-            <span class="tab-close"
-                  @onclick="() => Tabs.CloseTab(tab.RequestId)"
-                  @onclick:stopPropagation>&#10005;</span>
-        </div>
+        var isActive = tab.Key == Tabs.ActiveTab?.Key;
+        if (tab.Kind == TabKind.CollectionSettings)
+        {
+            <div class="tab tab-settings @(isActive ? "active" : "")"
+                 @onclick="() => Tabs.ActivateTab(tab.Key)">
+                <span class="tab-settings-icon">&#9881;</span>
+                <span class="tab-name" title="@tab.Name">@tab.Name</span>
+                <span class="tab-close"
+                      @onclick="() => Tabs.CloseTab(tab.Key)"
+                      @onclick:stopPropagation>&#10005;</span>
+            </div>
+        }
+        else
+        {
+            var isDirty = tab.Draft.IsDirty;
+            <div class="tab @(isActive ? "active" : "") @(isDirty ? "dirty" : "")"
+                 @onclick="() => Tabs.ActivateTab(tab.Key)"
+                 @oncontextmenu="(e) => ShowContextMenu(e, tab.RequestId)">
+                <span class="method-badge method-@tab.Method.ToLowerInvariant()">@tab.Method</span>
+                @if (isDirty)
+                {
+                    <span class="tab-dirty">&#10033;</span>
+                }
+                <span class="tab-name" title="@tab.Name">@tab.Name</span>
+                <span class="tab-close"
+                      @onclick="() => Tabs.CloseTab(tab.Key)"
+                      @onclick:stopPropagation>&#10005;</span>
+            </div>
+        }
     }
 </div>
 

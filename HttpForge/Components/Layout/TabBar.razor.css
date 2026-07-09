@@ -48,6 +48,9 @@
 
 .tab-dirty { color: var(--accent-orange); font-weight: 600; font-size: 11px; }
 
+/* Collection-settings tab: a small gear glyph in place of the method badge. */
+.tab-settings-icon { font-size: 11px; flex-shrink: 0; color: var(--accent-orange); }
+
 .tab-name {
     max-width: 120px;
     overflow: hidden;
