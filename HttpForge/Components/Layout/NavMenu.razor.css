@@ -333,15 +333,34 @@ button:disabled {
     font-style: italic;
 }
 
-.subset-badge {
-    font-size: 0.6rem;
-    background: var(--accent-orange);
-    color: #fff;
-    padding: 1px 5px;
+.collection-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Quick-switch of the active variable set — replaces the old read-only badge. */
+.subset-quick-select {
+    max-width: 6.5rem;
+    flex-shrink: 0;
+    background: var(--bg-input-dark);
+    color: var(--text-primary);
+    border: 1px solid var(--border-input);
     border-radius: 3px;
-    font-weight: 600;
-    margin-left: 2px;
-    opacity: 0.85;
+    padding: 0.1rem 0.2rem;
+    font-size: 0.68rem;
+}
+
+/* Dedicated always-visible entry point to the collection-settings tab. */
+.coll-vars-btn {
+    flex-shrink: 0;
+}
+
+.coll-vars-glyph {
+    font-family: var(--font-mono, monospace);
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: -1px;
 }
 
 .team-switcher {

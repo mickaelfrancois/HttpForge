@@ -23,6 +23,12 @@
         <p>Select or create a request from the sidebar to get started.</p>
     </div>
 }
+else if (Active.Kind == TabKind.CollectionSettings)
+{
+    @* Keyed by tab identity so switching between two collection-settings tabs recreates
+       the component with the new CollectionId instead of reusing stale state. *@
+    <CollectionSettings CollectionId="Active.CollectionId" @key="Active.Key" />
+}
 else
 {
     var tab = Active!;
@@ -522,6 +528,19 @@ else
             _collectionSubset = null;
             _collectionDefaultHeaders = [];
             State.SelectedCollectionId = null;
+            RebuildVariables();
+            return;
+        }
+
+        // A collection-settings tab has no request to load; it only points the app at its
+        // collection so variable resolution elsewhere stays consistent.
+        if (active.Kind == TabKind.CollectionSettings)
+        {
+            _request = null;
+            _collectionBase = null;
+            _collectionSubset = null;
+            _collectionDefaultHeaders = [];
+            State.SelectedCollectionId = active.CollectionId;
             RebuildVariables();
             return;
         }
@@ -1053,19 +1072,29 @@ else
         yield return ("download", "Download", t.DownloadMs);
     }
 
-    private int TabBadgeCount(string subTab) => subTab switch
+    // Guard on Kind, not just null: a CollectionSettings tab has a null Draft, so `Active?.`
+    // alone would NRE. Mirrors TabManagerService.SyncActiveSelection's explicit Kind test.
+    private int TabBadgeCount(string subTab)
     {
-        "Params"    => Active?.Draft.QueryParams.Count(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key)) ?? 0,
-        "Headers"   => Active?.Draft.Headers.Count(h => !string.IsNullOrWhiteSpace(h.Key)) ?? 0,
-        "Variables" => Active?.Draft.Variables.Count ?? 0,
-        _           => 0
-    };
+        if (Active is not { Kind: TabKind.Request } tab) return 0;
+        return subTab switch
+        {
+            "Params"    => tab.Draft.QueryParams.Count(p => p.Enabled && !string.IsNullOrWhiteSpace(p.Key)),
+            "Headers"   => tab.Draft.Headers.Count(h => !string.IsNullOrWhiteSpace(h.Key)),
+            "Variables" => tab.Draft.Variables.Count,
+            _           => 0
+        };
+    }
 
-    private bool TabHasDot(string subTab) => subTab switch
+    private bool TabHasDot(string subTab)
     {
-        "Body"    => !string.IsNullOrWhiteSpace(Active?.Draft.BodyContent),
-        "Scripts" => !string.IsNullOrWhiteSpace(Active?.Draft.PostScript),
-        "Options" => Active?.Draft.IgnoreTlsErrors ?? false,
-        _         => false
-    };
+        if (Active is not { Kind: TabKind.Request } tab) return false;
+        return subTab switch
+        {
+            "Body"    => !string.IsNullOrWhiteSpace(tab.Draft.BodyContent),
+            "Scripts" => !string.IsNullOrWhiteSpace(tab.Draft.PostScript),
+            "Options" => tab.Draft.IgnoreTlsErrors,
+            _         => false
+        };
+    }
 }
