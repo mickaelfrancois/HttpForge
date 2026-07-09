@@ -29,6 +29,11 @@ public class HttpRequestItem
 
     public bool IgnoreTlsErrors { get; set; }
 
+    // Identity of the OpenAPI operation this request was imported from, of the form
+    // "{METHOD} {path}" (e.g. "GET /users/{id}"). Null means the request is manual or a
+    // duplicate: an OpenAPI refresh never modifies or deletes a null-keyed request.
+    public string? SourceOperationKey { get; set; }
+
     public List<HeaderItem> Headers { get; set; } = new();
     public List<QueryParamItem> QueryParams { get; set; } = new();
     public List<FormFieldItem> FormFields { get; set; } = new();

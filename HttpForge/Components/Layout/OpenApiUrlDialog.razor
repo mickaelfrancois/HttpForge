@@ -1,11 +1,12 @@
-@* Modal dialog to import an OpenAPI/Swagger spec from a URL. Presentational only:
-   the parent owns the fetch and drives Visible/Busy/Error. *@
+@* Modal dialog to enter an OpenAPI/Swagger URL (import or refresh). Presentational only:
+   the parent owns the fetch and drives Visible/Busy/Error. Title, primary label and the
+   initial URL are parameterized so the same component serves both use cases. *@
 
 @if (Visible)
 {
     <div class="oa-dialog-overlay" @onclick="Cancel">
         <div class="oa-dialog" @onclick:stopPropagation>
-            <div class="oa-dialog-title">Importer depuis une URL OpenAPI/Swagger</div>
+            <div class="oa-dialog-title">@Title</div>
             <input class="oa-dialog-input"
                    placeholder="https://.../swagger.json"
                    @bind="_url" @bind:event="oninput"
@@ -21,7 +22,7 @@
                 <button class="oa-dialog-primary"
                         @onclick="Submit"
                         disabled="@(Busy || string.IsNullOrWhiteSpace(_url))">
-                    @(Busy ? "Import…" : "Importer")
+                    @(Busy ? BusyLabel : PrimaryLabel)
                 </button>
             </div>
         </div>
@@ -35,6 +36,12 @@
     [Parameter] public EventCallback<string> OnImport { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
 
+    // Defaults keep the import use case unchanged; the refresh caller overrides them.
+    [Parameter] public string Title { get; set; } = "Importer depuis une URL OpenAPI/Swagger";
+    [Parameter] public string PrimaryLabel { get; set; } = "Importer";
+    [Parameter] public string BusyLabel { get; set; } = "Import…";
+    [Parameter] public string? InitialUrl { get; set; }
+
     private string _url = string.Empty;
     private bool _wasVisible;
     private bool _focusQueued;
@@ -42,10 +49,10 @@
 
     protected override void OnParametersSet()
     {
-        // Reset the field and queue focus each time the dialog opens.
+        // Prefill (with InitialUrl, empty for import) and queue focus each time the dialog opens.
         if (Visible && !_wasVisible)
         {
-            _url = string.Empty;
+            _url = InitialUrl ?? string.Empty;
             _focusQueued = true;
         }
         _wasVisible = Visible;
