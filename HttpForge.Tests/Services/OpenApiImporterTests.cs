@@ -577,4 +577,58 @@ public class OpenApiImporterTests : IDisposable
         await using var ctx = Ctx();
         Assert.Empty(await ctx.Collections.ToListAsync());
     }
+
+    // ── Refresh tracking (source URL + operation key) ────────────────────────
+
+    [Fact]
+    public async Task ImportFileAsync_EachRequest_CarriesSourceOperationKey()
+    {
+        const string json = """
+            {
+              "openapi": "3.0.0",
+              "info": { "title": "A", "version": "1" },
+              "paths": {
+                "/users": { "get": {}, "post": {} },
+                "/users/{id}": { "get": {} }
+              }
+            }
+            """;
+
+        await _sut.ImportFileAsync(S(json), "api.json");
+
+        await using var ctx = Ctx();
+        var keys = await ctx.Requests.Select(r => r.SourceOperationKey).ToListAsync();
+        Assert.All(keys, k => Assert.False(string.IsNullOrEmpty(k)));
+        Assert.Contains("GET /users", keys);
+        Assert.Contains("POST /users", keys);
+        Assert.Contains("GET /users/{id}", keys);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_WithSourceUrl_StoresItOnCollection()
+    {
+        const string json = """
+            { "openapi": "3.0.0", "info": { "title": "A", "version": "1" }, "paths": { "/x": { "get": {} } } }
+            """;
+
+        await _sut.ImportFileAsync(S(json), "api.json", "https://api.example.com/swagger.json");
+
+        await using var ctx = Ctx();
+        var collection = await ctx.Collections.SingleAsync();
+        Assert.Equal("https://api.example.com/swagger.json", collection.SourceOpenApiUrl);
+    }
+
+    [Fact]
+    public async Task ImportFileAsync_WithoutSourceUrl_LeavesItNull()
+    {
+        const string json = """
+            { "openapi": "3.0.0", "info": { "title": "A", "version": "1" }, "paths": { "/x": { "get": {} } } }
+            """;
+
+        await _sut.ImportFileAsync(S(json), "api.json");
+
+        await using var ctx = Ctx();
+        var collection = await ctx.Collections.SingleAsync();
+        Assert.Null(collection.SourceOpenApiUrl);
+    }
 }
