@@ -149,14 +149,14 @@
 
 <OpenApiUrlDialog Visible="_showOpenApiUrl"
                   Busy="_urlImporting"
-                  Error="_urlError"
+                  Error="@_urlError"
                   OnImport="ImportOpenApiUrl"
                   OnCancel="CancelUrlDialog" />
 
 <OpenApiUrlDialog Visible="_showRefreshDialog"
                   Busy="_refreshBusy"
-                  Error="_refreshError"
-                  InitialUrl="_refreshInitialUrl"
+                  Error="@_refreshError"
+                  InitialUrl="@_refreshInitialUrl"
                   Title="Actualiser depuis OpenAPI"
                   PrimaryLabel="Actualiser"
                   BusyLabel="Actualisation…"
