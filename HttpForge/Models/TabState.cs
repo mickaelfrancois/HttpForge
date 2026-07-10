@@ -26,6 +26,10 @@ public class TabState
     public bool IsSending { get; set; }
     public CancellationTokenSource? SendCts { get; set; }
 
+    // A locked tab is skipped by every bulk close and hides its close button; only the
+    // explicit "Fermer l'onglet" context-menu action can still close it.
+    public bool IsLocked { get; set; }
+
     // Auto-save status indicator (debounced background save).
     public DateTime? LastSavedAt { get; set; }
     public bool IsAutoSaving { get; set; }
