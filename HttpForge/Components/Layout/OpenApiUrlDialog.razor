@@ -4,8 +4,8 @@
 
 @if (Visible)
 {
-    <div class="oa-dialog-overlay" @onclick="Cancel">
-        <div class="oa-dialog" @onclick:stopPropagation>
+    <div class="oa-dialog-overlay">
+        <div class="oa-dialog">
             <div class="oa-dialog-title">@Title</div>
             <input class="oa-dialog-input"
                    placeholder="https://.../swagger.json"
