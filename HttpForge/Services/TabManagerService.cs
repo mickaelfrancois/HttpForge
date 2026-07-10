@@ -12,7 +12,7 @@ namespace HttpForge.Services;
 // only the id relevant to its Kind. Kind defaults to Request and ActiveKey to null,
 // so JSON written by an earlier version ({RequestId, ActiveSubTab} + ActiveRequestId)
 // still deserializes as request tabs — the format evolution is additive.
-public record TabStorageState(int? RequestId, string ActiveSubTab, TabKind Kind = TabKind.Request, int? CollectionId = null);
+public record TabStorageState(int? RequestId, string ActiveSubTab, TabKind Kind = TabKind.Request, int? CollectionId = null, bool IsLocked = false);
 public record TabStorageData(TabStorageState[] Tabs, int? ActiveRequestId, string? ActiveKey = null);
 
 public class TabManagerService(
@@ -46,6 +46,7 @@ public class TabManagerService(
 
         foreach (var stored in data.Tabs)
         {
+            var before = _tabs.Count;
             if (stored.Kind == TabKind.CollectionSettings)
             {
                 if (stored.CollectionId is int cid)
@@ -55,6 +56,7 @@ public class TabManagerService(
             {
                 await OpenTabInternalAsync(rid, stored.ActiveSubTab);
             }
+            if (stored.IsLocked && _tabs.Count > before) _tabs[^1].IsLocked = true;
         }
 
         // Prefer the canonical ActiveKey; fall back to the legacy ActiveRequestId so a tab
@@ -95,6 +97,18 @@ public class TabManagerService(
 
     public void CloseCollectionSettingsTab(int collectionId)
         => ForceCloseTab(TabState.CollectionKey(collectionId));
+
+    // ── Locking ──────────────────────────────────────────────────────────────────
+
+    public void ToggleLock(int requestId) => ToggleLock(TabState.RequestKey(requestId));
+
+    public void ToggleLock(string key)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Key == key);
+        if (tab is null) return;
+        tab.IsLocked = !tab.IsLocked;
+        Notify();
+    }
 
     // ── Activation / closing — canonical (by Key) with int wrappers for request tabs ──
 
@@ -139,9 +153,10 @@ public class TabManagerService(
 
     public void CloseOtherTabs(string keepKey)
     {
-        var toRemove = _tabs.Where(t => t.Key != keepKey).ToList();
+        var toRemove = _tabs.Where(t => t.Key != keepKey && !t.IsLocked).ToList();
         foreach (var t in toRemove) _tabs.Remove(t);
-        ActiveTab = _tabs.FirstOrDefault();
+        if (ActiveTab is null || !_tabs.Contains(ActiveTab))
+            ActiveTab = _tabs.FirstOrDefault(t => t.Key == keepKey) ?? _tabs.FirstOrDefault();
         SyncActiveSelection();
         appState.NotifyChanged();
         foreach (var t in toRemove) NotifyRemoved(t);
@@ -155,7 +170,7 @@ public class TabManagerService(
         var idx = _tabs.FindIndex(t => t.Key == key);
         if (idx < 0) return;
 
-        var toRemove = _tabs.Skip(idx + 1).ToList();
+        var toRemove = _tabs.Skip(idx + 1).Where(t => !t.IsLocked).ToList();
         if (toRemove.Count == 0) return;
 
         foreach (var t in toRemove) _tabs.Remove(t);
@@ -176,7 +191,7 @@ public class TabManagerService(
         if (target is null) return;
 
         var collectionId = target.CollectionId;
-        var toRemove = _tabs.Where(t => t.CollectionId == collectionId).ToList();
+        var toRemove = _tabs.Where(t => t.CollectionId == collectionId && !t.IsLocked).ToList();
         foreach (var t in toRemove) _tabs.Remove(t);
 
         if (ActiveTab is null || !_tabs.Contains(ActiveTab))
@@ -190,12 +205,12 @@ public class TabManagerService(
 
     public void CloseAllTabs()
     {
-        var removed = _tabs.Where(t => t.Kind == TabKind.Request).Select(t => t.RequestId).ToList();
-        _tabs.Clear();
-        ActiveTab = null;
-        appState.SelectedRequestId = null;
+        var toRemove = _tabs.Where(t => !t.IsLocked).ToList();
+        foreach (var t in toRemove) _tabs.Remove(t);
+        if (ActiveTab is null || !_tabs.Contains(ActiveTab)) ActiveTab = _tabs.FirstOrDefault();
+        SyncActiveSelection();
         appState.NotifyChanged();
-        foreach (var id in removed) OnTabRemoved?.Invoke(id);
+        foreach (var t in toRemove) NotifyRemoved(t);
         Notify();
     }
 
@@ -280,7 +295,8 @@ public class TabManagerService(
                 t.Kind == TabKind.Request ? t.RequestId : null,
                 t.ActiveSubTab,
                 t.Kind,
-                t.Kind == TabKind.CollectionSettings ? t.CollectionId : null)).ToArray(),
+                t.Kind == TabKind.CollectionSettings ? t.CollectionId : null,
+                t.IsLocked)).ToArray(),
             ActiveTab is { Kind: TabKind.Request } rt ? rt.RequestId : null,
             ActiveTab?.Key);
         await _js.InvokeVoidAsync("forge.tabs.save", JsonSerializer.Serialize(data));

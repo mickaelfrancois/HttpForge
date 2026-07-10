@@ -28,9 +28,16 @@
                     <span class="tab-dirty">&#10033;</span>
                 }
                 <span class="tab-name" title="@tab.Name">@tab.Name</span>
-                <span class="tab-close"
-                      @onclick="() => Tabs.CloseTab(tab.Key)"
-                      @onclick:stopPropagation>&#10005;</span>
+                @if (tab.IsLocked)
+                {
+                    <span class="tab-lock" title="Onglet verrouillé">&#128274;</span>
+                }
+                else
+                {
+                    <span class="tab-close"
+                          @onclick="() => Tabs.CloseTab(tab.Key)"
+                          @onclick:stopPropagation>&#10005;</span>
+                }
             </div>
         }
     }
@@ -43,6 +50,10 @@
         <div class="ctx-item" @onclick="() => CloseFromCtx(_ctxRequestId)">
             &#10005;&nbsp;&nbsp;Fermer l'onglet
         </div>
+        <div class="ctx-item" @onclick="() => ToggleLockFromCtx(_ctxRequestId)">
+            &#128274;&nbsp;&nbsp;@(IsCtxLocked() ? "Déverrouiller l'onglet" : "Verrouiller l'onglet")
+        </div>
+        <div class="ctx-divider"></div>
         <div class="ctx-item" @onclick="() => CloseOthersFromCtx(_ctxRequestId)">
             &#9647;&nbsp;&nbsp;Fermer les autres
         </div>
@@ -94,6 +105,13 @@
     private void CloseRightFromCtx(int requestId)  { Tabs.CloseTabsToTheRight(requestId); HideContextMenu(); }
     private void CloseCollectionFromCtx(int requestId) { Tabs.CloseTabsOfCollection(requestId); HideContextMenu(); }
     private void CloseAllFromCtx()                 { Tabs.CloseAllTabs(); HideContextMenu(); }
+    private void ToggleLockFromCtx(int requestId)  { Tabs.ToggleLock(requestId); HideContextMenu(); }
+
+    private bool IsCtxLocked()
+    {
+        var key = TabState.RequestKey(_ctxRequestId);
+        return Tabs.Tabs.FirstOrDefault(t => t.Key == key)?.IsLocked ?? false;
+    }
 
     private bool HasTabsToRightOf(int requestId)
     {
