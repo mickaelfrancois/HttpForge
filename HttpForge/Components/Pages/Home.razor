@@ -309,7 +309,7 @@ else
                     else
                     {
                         <span class="status status-@StatusClass(tab.Result.StatusCode)">@tab.Result.StatusCode @tab.Result.ReasonPhrase</span>
-                        <span>⏱ @tab.Result.ElapsedMs ms</span>
+                        <span>⏱ @FormatDuration(tab.Result.ElapsedMs)</span>
                         <span>📦 @FormatBytes(tab.Result.BodyBytes)</span>
                     }
                     <button class="tab @(tab.ActiveResponseTab == "Body" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Body")">Body</button>
@@ -334,6 +334,11 @@ else
                     {
                         <button class="tab @(tab.ActiveResponseTab == "History" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "History")">Historique (@tab.History.Count)</button>
                     }
+                    @if (!_isError && !string.IsNullOrEmpty(tab.Result.Body))
+                    {
+                        <button class="meta-copy" title="Copier le corps de la réponse"
+                                @onclick="() => CopyBodyAsync(tab)">⎘ Copier</button>
+                    }
                 </div>
                 <div class="response-body">
                     @if (tab.ActiveResponseTab == "History")
@@ -345,7 +350,7 @@ else
                                     <span class="history-status status-@StatusClass(entry.Result.StatusCode)">@(entry.Result.Error is null ? entry.Result.StatusCode.ToString() : "ERR")</span>
                                     <span class="history-method method-@entry.Method.ToString().ToLower()">@entry.Method</span>
                                     <span class="history-url" title="@entry.Url">@entry.Url</span>
-                                    <span class="history-info">@entry.Result.ElapsedMs ms · @FormatBytes(entry.Result.BodyBytes)</span>
+                                    <span class="history-info">@FormatDuration(entry.Result.ElapsedMs) · @FormatBytes(entry.Result.BodyBytes)</span>
                                     <span class="history-time">@entry.At.ToString("HH:mm:ss")</span>
                                 </button>
                             }
@@ -378,7 +383,7 @@ else
                                 <tr><th>TLS</th><td>@(string.IsNullOrEmpty(tm.TlsProtocol) ? "—" : tm.TlsProtocol)</td></tr>
                                 <tr><th>Cipher</th><td>@(string.IsNullOrEmpty(tm.TlsCipher) ? "—" : tm.TlsCipher)</td></tr>
                                 <tr><th>ALPN</th><td>@(string.IsNullOrEmpty(tm.NegotiatedAlpn) ? "—" : tm.NegotiatedAlpn)</td></tr>
-                                <tr><th>Total</th><td>@tm.TotalMs ms</td></tr>
+                                <tr><th>Total</th><td>@FormatDuration(tm.TotalMs)</td></tr>
                             </table>
                         </div>
                     }
@@ -1078,6 +1083,26 @@ else
         < 1024 * 1024 => $"{bytes / 1024.0:0.#} Ko",
         _ => $"{bytes / (1024.0 * 1024):0.#} Mo"
     };
+
+    // Human-readable duration: milliseconds under a second, seconds beyond.
+    private static string FormatDuration(long ms) =>
+        ms < 1000 ? $"{ms} ms" : $"{ms / 1000.0:0.##} s";
+
+    // Copies the current response body to the clipboard.
+    private async Task CopyBodyAsync(TabState tab)
+    {
+        var body = tab.Result?.Body;
+        if (string.IsNullOrEmpty(body)) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", body);
+            _curlNotice = "Corps de la réponse copié dans le presse-papier.";
+        }
+        catch
+        {
+            _curlNotice = "Copie impossible (presse-papier indisponible).";
+        }
+    }
 
     // ── Empty-state actions ─────────────────────────────────────────────────────
 
