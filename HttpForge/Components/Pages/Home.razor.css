@@ -12,6 +12,50 @@
     margin-bottom: 0.5rem;
 }
 
+.empty-mark {
+    font-size: 2.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.empty-state p {
+    margin: 0 0 1.25rem;
+    max-width: 26rem;
+    text-align: center;
+}
+
+.empty-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.empty-action {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border-input);
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.empty-action:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.empty-action--primary {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+}
+
+.empty-action--primary:hover {
+    background: var(--accent-blue-hover);
+    color: #fff;
+}
+
 .editor {
     display: flex;
     flex-direction: column;

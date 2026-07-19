@@ -16,6 +16,12 @@ public class AppState
 
     public void NotifyChanged() => OnChange?.Invoke();
 
+    // Raised when a component (e.g. the Home empty state) asks the sidebar to open its
+    // import menu, so the import UI stays owned by NavMenu instead of being duplicated.
+    public event Action? OpenImportRequested;
+
+    public void RequestOpenImport() => OpenImportRequested?.Invoke();
+
     public IReadOnlyList<ResolvedVariableEntry> BuildVariables(
         AppEnvironment? globalBase,
         AppEnvironment? globalSubset,
