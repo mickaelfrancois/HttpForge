@@ -71,30 +71,137 @@
     padding: 0.5rem 1rem 0;
 }
 
-.env-badge {
+/* Transparent full-screen catcher: a click outside an open scope menu closes it. */
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+}
+
+/* Active-scope switcher: two chips (global / collection) each opening a sub-set menu. */
+.scope-switcher {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     flex-shrink: 0;
+}
+
+.scope-chip-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.scope-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     background: var(--bg-input-dark);
     border: 1px solid var(--border-input);
     border-radius: 999px;
     color: var(--text-dim);
     cursor: pointer;
     font-size: 0.72rem;
-    padding: 0.2rem 0.7rem;
+    padding: 0.2rem 0.6rem;
     white-space: nowrap;
 }
 
-.env-badge:hover {
+.scope-chip:hover:not(:disabled) {
     color: var(--text-primary);
     border-color: var(--accent-blue);
 }
 
-.env-badge-scope {
-    display: inline-flex;
+.scope-chip:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.scope-name {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scope-caret {
+    color: var(--text-muted);
+    font-size: 0.6rem;
+}
+
+.scope-sep {
+    color: var(--text-muted);
+}
+
+.scope-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.25rem;
+    min-width: 12rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    z-index: 100;
+    padding: 0.25rem 0;
+}
+
+.scope-menu-head {
+    display: flex;
+    flex-direction: column;
+    padding: 0.35rem 0.7rem 0.4rem;
+    border-bottom: 1px solid var(--border-main);
+    margin-bottom: 0.25rem;
+}
+
+.scope-menu-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.scope-menu-reach {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
+
+.scope-item {
+    display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.35rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.7rem;
+    white-space: nowrap;
+}
+
+.scope-item:hover {
+    background: var(--bg-hover);
+}
+
+.scope-item.active {
+    color: var(--text-brand);
+}
+
+.scope-check {
+    display: inline-block;
+    width: 0.8rem;
+    color: var(--accent-orange);
+}
+
+.scope-menu-sep {
+    height: 1px;
+    background: var(--border-main);
+    margin: 0.25rem 0;
+}
+
+.scope-manage {
+    color: var(--text-link);
+    font-size: 0.76rem;
 }
 
 .request-name-input {

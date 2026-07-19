@@ -1,0 +1,109 @@
+@rendermode InteractiveServer
+
+@* Scope-agnostic editor for a variable set: a Base list plus an optional active sub-set.
+   Both the global-variables tab and the collection-settings tab render this, so the
+   markup for a variable row lives in exactly one place. The parent owns persistence
+   (each callback writes to its own scope) and this component owns only view state
+   (which secret rows are currently revealed). *@
+
+<div class="var-list">
+    <div class="var-list-header"><span>@BaseLabel</span></div>
+    @foreach (var v in BaseEntries)
+    {
+        @Row(v)
+    }
+    <button class="link-btn" @onclick="() => OnAddBaseEntry.InvokeAsync()">@AddBaseLabel</button>
+</div>
+
+<div class="var-list vse-subset-block">
+    <div class="var-list-header"><span>@SubsetLabel</span></div>
+    <div class="vse-subset-row">
+        <select value="@(ActiveSubsetId?.ToString() ?? "")" @onchange="OnSubsetSelectChanged">
+            <option value="">@SubsetNoneLabel</option>
+            @foreach (var s in Subsets)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </select>
+        <button class="icon-btn" title="Nouveau sous-ensemble" @onclick="() => OnAddSubset.InvokeAsync()">+</button>
+        @if (ActiveSubsetId is int activeId)
+        {
+            <button class="icon-btn" title="Supprimer le sous-ensemble"
+                    @onclick="() => OnDeleteSubset.InvokeAsync(activeId)">🗑</button>
+        }
+    </div>
+    @if (ActiveSubsetId is not null)
+    {
+        @foreach (var v in SubsetEntries)
+        {
+            @Row(v)
+        }
+        <button class="link-btn" @onclick="() => OnAddSubsetEntry.InvokeAsync()">@AddSubsetLabel</button>
+    }
+</div>
+
+@code {
+    // ── Base set ────────────────────────────────────────────────────────────────
+    [Parameter, EditorRequired] public IReadOnlyList<IVariableEntry> BaseEntries { get; set; } = [];
+    [Parameter] public EventCallback OnAddBaseEntry { get; set; }
+
+    // ── Sub-sets ────────────────────────────────────────────────────────────────
+    [Parameter] public IReadOnlyList<VariableSubsetOption> Subsets { get; set; } = [];
+    [Parameter] public int? ActiveSubsetId { get; set; }
+    [Parameter] public EventCallback<int?> OnActiveSubsetChanged { get; set; }
+    [Parameter] public IReadOnlyList<IVariableEntry> SubsetEntries { get; set; } = [];
+    [Parameter] public EventCallback OnAddSubset { get; set; }
+    [Parameter] public EventCallback<int> OnDeleteSubset { get; set; }
+    [Parameter] public EventCallback OnAddSubsetEntry { get; set; }
+
+    // ── Per-entry mutations (parent persists) ──────────────────────────────────
+    [Parameter] public EventCallback<IVariableEntry> OnEntryChanged { get; set; }
+    [Parameter] public EventCallback<IVariableEntry> OnToggleSecret { get; set; }
+    [Parameter] public EventCallback<IVariableEntry> OnRemoveEntry { get; set; }
+
+    // ── Labels (defaults suit the global tab; collection tab overrides them) ────
+    [Parameter] public string BaseLabel { get; set; } = "Base";
+    [Parameter] public string SubsetLabel { get; set; } = "Sous-ensemble";
+    [Parameter] public string SubsetNoneLabel { get; set; } = "— aucun —";
+    [Parameter] public string AddBaseLabel { get; set; } = "+ ajouter une variable";
+    [Parameter] public string AddSubsetLabel { get; set; } = "+ ajouter une variable";
+
+    // View-only state: secret rows the user has temporarily revealed, keyed by entry id.
+    private readonly HashSet<int> _revealed = new();
+
+    private bool IsMasked(IVariableEntry v) => v.IsSecret && !_revealed.Contains(v.Id);
+
+    private void ToggleReveal(IVariableEntry v)
+    {
+        if (!_revealed.Add(v.Id)) _revealed.Remove(v.Id);
+    }
+
+    private async Task OnSubsetSelectChanged(ChangeEventArgs e)
+    {
+        var id = int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null;
+        await OnActiveSubsetChanged.InvokeAsync(id);
+    }
+
+    // One source of truth for a variable row. Mutates the entry in place on input and
+    // persists on blur (mirrors KeyValueGrid) — far fewer writes than saving per keystroke.
+    private RenderFragment Row(IVariableEntry v) => __builder =>
+    {
+        <div class="var-row">
+            <input placeholder="clé" value="@v.Key"
+                   @oninput="e => v.Key = e.Value?.ToString() ?? string.Empty"
+                   @onblur="() => OnEntryChanged.InvokeAsync(v)" />
+            <input placeholder="valeur" type="@(IsMasked(v) ? "password" : "text")" value="@v.Value"
+                   @oninput="e => v.Value = e.Value?.ToString() ?? string.Empty"
+                   @onblur="() => OnEntryChanged.InvokeAsync(v)" />
+            @if (v.IsSecret)
+            {
+                <button class="icon-btn" title="@(IsMasked(v) ? "Révéler" : "Masquer")"
+                        @onclick="() => ToggleReveal(v)">@(IsMasked(v) ? "👁" : "🚫")</button>
+            }
+            <button class="icon-btn @(v.IsSecret ? "active" : "")"
+                    title="@(v.IsSecret ? "Ne plus marquer comme secret" : "Marquer comme secret")"
+                    @onclick="() => OnToggleSecret.InvokeAsync(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
+            <button class="icon-btn" title="Supprimer" @onclick="() => OnRemoveEntry.InvokeAsync(v)">✕</button>
+        </div>
+    };
+}

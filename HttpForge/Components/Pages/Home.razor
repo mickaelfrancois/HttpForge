@@ -34,6 +34,10 @@
         </div>
     </div>
 }
+else if (Active.Kind == TabKind.GlobalSettings)
+{
+    <GlobalSettings @key="Active.Key" />
+}
 else if (Active.Kind == TabKind.CollectionSettings)
 {
     @* Keyed by tab identity so switching between two collection-settings tabs recreates
@@ -68,11 +72,71 @@ else
         <div class="request-name-row">
             <input class="request-name-input" value="@tab.Draft.Name"
                    @oninput="OnNameInput" placeholder="Request name" />
-            <button class="env-badge" title="Environnement actif — cliquer pour gérer les variables globales"
-                    @onclick="() => State.RequestOpenEnvEditor()">
-                <span class="env-badge-scope">🌐 @(_globalSubset?.Name ?? "Base")</span>
-                <span class="env-badge-scope">📦 @(_collectionSubset?.Name ?? "Base")</span>
-            </button>
+            <div class="scope-switcher">
+                <div class="scope-chip-wrap">
+                    <button class="scope-chip" title="Sous-ensemble global actif — commun à toutes les requêtes"
+                            @onclick="() => ToggleScopeMenu(ScopeMenu.Global)">
+                        <span class="scope-ico">🌐</span>
+                        <span class="scope-name">@(_globalSubset?.Name ?? "Base")</span>
+                        <span class="scope-caret">▾</span>
+                    </button>
+                    @if (_openScopeMenu == ScopeMenu.Global)
+                    {
+                        <div class="menu-backdrop" @onclick="CloseScopeMenu"></div>
+                        <div class="scope-menu">
+                            <div class="scope-menu-head">
+                                <span class="scope-menu-title">🌐 Global</span>
+                                <span class="scope-menu-reach">tout le workspace</span>
+                            </div>
+                            <button class="scope-item @(_globalSubset is null ? "active" : "")"
+                                    @onclick="() => SetGlobalSubset(null)">
+                                <span class="scope-check">@(_globalSubset is null ? "✓" : "")</span> Base
+                            </button>
+                            @foreach (var s in _globalSubsets)
+                            {
+                                <button class="scope-item @(_globalSubset?.Id == s.Id ? "active" : "")"
+                                        @onclick="() => SetGlobalSubset(s.Id)">
+                                    <span class="scope-check">@(_globalSubset?.Id == s.Id ? "✓" : "")</span> @s.Name
+                                </button>
+                            }
+                            <div class="scope-menu-sep"></div>
+                            <button class="scope-item scope-manage" @onclick="OpenGlobalManage">⚙ Gérer les variables globales</button>
+                        </div>
+                    }
+                </div>
+                <span class="scope-sep">·</span>
+                <div class="scope-chip-wrap">
+                    <button class="scope-chip" title="Sous-ensemble de collection actif — commun à toute la collection"
+                            @onclick="() => ToggleScopeMenu(ScopeMenu.Collection)" disabled="@(_request is null)">
+                        <span class="scope-ico">📦</span>
+                        <span class="scope-name">@(_collectionSubset?.Name ?? "Base")</span>
+                        <span class="scope-caret">▾</span>
+                    </button>
+                    @if (_openScopeMenu == ScopeMenu.Collection)
+                    {
+                        <div class="menu-backdrop" @onclick="CloseScopeMenu"></div>
+                        <div class="scope-menu">
+                            <div class="scope-menu-head">
+                                <span class="scope-menu-title">📦 @(_collectionName ?? "Collection")</span>
+                                <span class="scope-menu-reach">toutes ses requêtes</span>
+                            </div>
+                            <button class="scope-item @(_collectionSubset is null ? "active" : "")"
+                                    @onclick="() => SetCollectionSubset(null)">
+                                <span class="scope-check">@(_collectionSubset is null ? "✓" : "")</span> Base
+                            </button>
+                            @foreach (var s in _collectionSubsets)
+                            {
+                                <button class="scope-item @(_collectionSubset?.Id == s.Id ? "active" : "")"
+                                        @onclick="() => SetCollectionSubset(s.Id)">
+                                    <span class="scope-check">@(_collectionSubset?.Id == s.Id ? "✓" : "")</span> @s.Name
+                                </button>
+                            }
+                            <div class="scope-menu-sep"></div>
+                            <button class="scope-item scope-manage" @onclick="OpenCollectionManage">⚙ Gérer la collection</button>
+                        </div>
+                    }
+                </div>
+            </div>
         </div>
         <div class="url-bar">
             <select class="method-select method-@tab.Draft.Method.ToString().ToLower()"
@@ -488,6 +552,13 @@ else
     private AppEnvironment? _globalSubset;
     private CollectionVariableSet? _collectionBase;
     private CollectionVariableSet? _collectionSubset;
+
+    // Scope switcher (header chips): the pickable sub-sets and which chip's menu is open.
+    private List<AppEnvironment> _globalSubsets = new();
+    private List<CollectionVariableSet> _collectionSubsets = new();
+    private string? _collectionName;
+    private enum ScopeMenu { None, Global, Collection }
+    private ScopeMenu _openScopeMenu = ScopeMenu.None;
     // Default headers inherited from the active request's collection (read-only here;
     // edited in NavMenu). Applied to every send via RequestExecutor.
     private IReadOnlyList<CollectionDefaultHeader> _collectionDefaultHeaders = [];
@@ -591,8 +662,9 @@ else
             .ToListAsync();
         _globalBase = envs.FirstOrDefault(e => e.IsBase);
         // Only non-base environments are selectable; base is always loaded as _globalBase
+        _globalSubsets = envs.Where(e => !e.IsBase).OrderBy(e => e.Name).ToList();
         _globalSubset = State.SelectedEnvironmentId is int id
-            ? envs.FirstOrDefault(e => e.Id == id && !e.IsBase)
+            ? _globalSubsets.FirstOrDefault(e => e.Id == id)
             : null;
         RebuildVariables();
     }
@@ -613,21 +685,26 @@ else
             _request = null;
             _collectionBase = null;
             _collectionSubset = null;
+            _collectionSubsets = new();
+            _collectionName = null;
             _collectionDefaultHeaders = [];
             State.SelectedCollectionId = null;
             RebuildVariables();
             return;
         }
 
-        // A collection-settings tab has no request to load; it only points the app at its
-        // collection so variable resolution elsewhere stays consistent.
-        if (active.Kind == TabKind.CollectionSettings)
+        // A settings tab (global or collection) has no request to load. The global tab is
+        // workspace-scoped so it clears the collection selection; the collection tab points
+        // the app at its collection so variable resolution elsewhere stays consistent.
+        if (active.Kind is TabKind.GlobalSettings or TabKind.CollectionSettings)
         {
             _request = null;
             _collectionBase = null;
             _collectionSubset = null;
+            _collectionSubsets = new();
+            _collectionName = null;
             _collectionDefaultHeaders = [];
-            State.SelectedCollectionId = active.CollectionId;
+            State.SelectedCollectionId = active.Kind == TabKind.CollectionSettings ? active.CollectionId : null;
             RebuildVariables();
             return;
         }
@@ -650,9 +727,11 @@ else
         if (!ReferenceEquals(Active, active)) return;
 
         _collectionBase = collection?.VariableSets.FirstOrDefault(s => s.IsBase);
+        _collectionSubsets = collection?.VariableSets.Where(s => !s.IsBase).OrderBy(s => s.Name).ToList() ?? new();
         _collectionSubset = collection?.ActiveCollectionVariableSetId is int sid
-            ? collection.VariableSets.FirstOrDefault(s => s.Id == sid && !s.IsBase)
+            ? _collectionSubsets.FirstOrDefault(s => s.Id == sid)
             : null;
+        _collectionName = collection?.Name;
         _collectionDefaultHeaders = collection?.DefaultHeaders.ToList() ?? [];
 
         State.SelectedCollectionId = request?.CollectionId;
@@ -668,6 +747,50 @@ else
     }
 
     private string Tooltip(string? text) => VariablePreview.Build(text, _resolvedVariables);
+
+    // ── Scope switcher (header chips) ───────────────────────────────────────────
+
+    private void ToggleScopeMenu(ScopeMenu m) => _openScopeMenu = _openScopeMenu == m ? ScopeMenu.None : m;
+
+    private void CloseScopeMenu() => _openScopeMenu = ScopeMenu.None;
+
+    // Global sub-set: workspace-wide. Persisted on the singleton settings row; the state
+    // notification reloads the chips (and every request's resolved variables).
+    private async Task SetGlobalSubset(int? id)
+    {
+        _openScopeMenu = ScopeMenu.None;
+        State.SelectedEnvironmentId = id;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.FirstAsync(s => s.Id == 1);
+        settings.ActiveGlobalSubsetId = id;
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    // Collection sub-set: applies to the whole collection of the active request, not just
+    // this request — the reach the menu header spells out.
+    private async Task SetCollectionSubset(int? id)
+    {
+        _openScopeMenu = ScopeMenu.None;
+        if (State.SelectedCollectionId is not int cid) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var col = await db.Collections.FirstAsync(c => c.Id == cid);
+        col.ActiveCollectionVariableSetId = id;
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private void OpenGlobalManage()
+    {
+        _openScopeMenu = ScopeMenu.None;
+        Tabs.OpenGlobalSettingsTab();
+    }
+
+    private void OpenCollectionManage()
+    {
+        _openScopeMenu = ScopeMenu.None;
+        if (State.SelectedCollectionId is int cid) _ = Tabs.OpenCollectionSettingsTabAsync(cid);
+    }
 
     private async Task CopyUrlAsync(string url)
     {

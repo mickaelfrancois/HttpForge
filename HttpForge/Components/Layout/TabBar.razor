@@ -5,11 +5,11 @@
     @foreach (var tab in Tabs.Tabs)
     {
         var isActive = tab.Key == Tabs.ActiveTab?.Key;
-        if (tab.Kind == TabKind.CollectionSettings)
+        if (tab.Kind is TabKind.CollectionSettings or TabKind.GlobalSettings)
         {
             <div class="tab tab-settings @(isActive ? "active" : "")"
                  @onclick="() => Tabs.ActivateTab(tab.Key)">
-                <span class="tab-settings-icon">&#9881;</span>
+                <span class="tab-settings-icon">@(tab.Kind == TabKind.GlobalSettings ? "🌐" : "⚙")</span>
                 <span class="tab-name" title="@tab.Name">@tab.Name</span>
                 <span class="tab-close"
                       @onclick="() => Tabs.CloseTab(tab.Key)"

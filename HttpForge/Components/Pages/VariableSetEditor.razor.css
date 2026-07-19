@@ -1,0 +1,91 @@
+/* Self-contained: Blazor scoped CSS does not reach in from the hosting tab. */
+.var-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.var-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-bottom: 0.2rem;
+}
+
+.var-row {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.var-row input {
+    flex: 1;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.82rem;
+    min-width: 0;
+}
+
+.vse-subset-block {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-main);
+}
+
+.vse-subset-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.vse-subset-row select {
+    flex: 1;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-input);
+    border-radius: 3px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+}
+
+.icon-btn:hover {
+    background: var(--bg-btn-hover);
+    color: var(--text-brand);
+}
+
+.icon-btn.active {
+    color: var(--accent-orange);
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: var(--text-link);
+    cursor: pointer;
+    font-size: 0.78rem;
+    padding: 0;
+    text-decoration: underline;
+    align-self: flex-start;
+}
+
+.link-btn:hover {
+    text-decoration: none;
+}

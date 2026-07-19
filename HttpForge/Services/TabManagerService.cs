@@ -47,7 +47,11 @@ public class TabManagerService(
         foreach (var stored in data.Tabs)
         {
             var before = _tabs.Count;
-            if (stored.Kind == TabKind.CollectionSettings)
+            if (stored.Kind == TabKind.GlobalSettings)
+            {
+                OpenGlobalSettingsTabInternal();
+            }
+            else if (stored.Kind == TabKind.CollectionSettings)
             {
                 if (stored.CollectionId is int cid)
                     await OpenCollectionSettingsTabInternalAsync(cid);
@@ -97,6 +101,15 @@ public class TabManagerService(
 
     public void CloseCollectionSettingsTab(int collectionId)
         => ForceCloseTab(TabState.CollectionKey(collectionId));
+
+    // ── Global settings tab (singleton) ──────────────────────────────────────────
+
+    public void OpenGlobalSettingsTab()
+    {
+        if (!_tabs.Any(t => t.Key == TabState.GlobalSettingsKey))
+            OpenGlobalSettingsTabInternal();
+        ActivateTab(TabState.GlobalSettingsKey);
+    }
 
     // ── Locking ──────────────────────────────────────────────────────────────────
 
@@ -255,6 +268,11 @@ public class TabManagerService(
         });
         return true;
     }
+
+    // No DB round-trip: the global variable set is a workspace singleton that always exists
+    // (seeded at startup), so the tab is valid without loading anything.
+    private void OpenGlobalSettingsTabInternal()
+        => _tabs.Add(new TabState { Kind = TabKind.GlobalSettings, Name = "Variables globales" });
 
     private void RemoveTab(TabState tab)
     {

@@ -9,10 +9,6 @@
 }
 else
 {
-    var cBase = _collection.VariableSets.FirstOrDefault(s => s.IsBase);
-    var cSubsets = _collection.VariableSets.Where(s => !s.IsBase).ToList();
-    var activeSet = _collection.VariableSets.FirstOrDefault(s => s.Id == _collection.ActiveCollectionVariableSetId && !s.IsBase);
-
     <div class="cs-root">
         <div class="cs-title-row">
             <span class="cs-title-icon">📦</span>
@@ -29,74 +25,21 @@ else
         <div class="cs-body">
             @if (_section == Section.Variables)
             {
-                <div class="var-list">
-                    <div class="var-list-header"><span>Base</span></div>
-                    @foreach (var v in cBase?.Entries ?? [])
-                    {
-                        var masked = v.IsSecret && !_revealed.Contains(v.Id);
-                        <div class="var-row">
-                            <input placeholder="key" value="@v.Key"
-                                   @oninput="e => OnEntryKeyChanged(v, e)" />
-                            <input placeholder="value" type="@(masked ? "password" : "text")"
-                                   value="@v.Value"
-                                   @oninput="e => OnEntryValueChanged(v, e)" />
-                            @if (v.IsSecret)
-                            {
-                                <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
-                                        @onclick="() => ToggleReveal(v)">@(masked ? "👁" : "🚫")</button>
-                            }
-                            <button class="icon-btn @(v.IsSecret ? "active" : "")"
-                                    title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
-                                    @onclick="() => ToggleSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
-                            <button class="icon-btn" @onclick="() => RemoveEntry(v)">✕</button>
-                        </div>
-                    }
-                    <button class="link-btn" @onclick="AddBaseEntry">+ add collection variable</button>
-                </div>
-
-                <div class="var-list cs-subset-block">
-                    <div class="var-list-header"><span>Sub-set</span></div>
-                    <div class="cs-row">
-                        <select value="@(_collection.ActiveCollectionVariableSetId?.ToString() ?? "")"
-                                @onchange="OnSubsetChanged">
-                            <option value="">— none —</option>
-                            @foreach (var s in cSubsets)
-                            {
-                                <option value="@s.Id">@s.Name</option>
-                            }
-                        </select>
-                        <button class="icon-btn" title="New sub-set" @onclick="AddSubset">+</button>
-                        @if (activeSet is not null)
-                        {
-                            <button class="icon-btn" title="Delete sub-set"
-                                    @onclick="() => DeleteSubset(activeSet)">🗑</button>
-                        }
-                    </div>
-                    @if (activeSet is not null)
-                    {
-                        @foreach (var v in activeSet.Entries)
-                        {
-                            var masked = v.IsSecret && !_revealed.Contains(v.Id);
-                            <div class="var-row">
-                                <input placeholder="key" value="@v.Key"
-                                       @oninput="e => OnEntryKeyChanged(v, e)" />
-                                <input placeholder="value" type="@(masked ? "password" : "text")"
-                                       value="@v.Value"
-                                       @oninput="e => OnEntryValueChanged(v, e)" />
-                                @if (v.IsSecret)
-                                {
-                                    <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
-                                            @onclick="() => ToggleReveal(v)">@(masked ? "👁" : "🚫")</button>
-                                }
-                                <button class="icon-btn @(v.IsSecret ? "active" : "")"
-                                        title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
-                                        @onclick="() => ToggleSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
-                                <button class="icon-btn" @onclick="() => RemoveEntry(v)">✕</button>
-                            </div>
-                        }
-                        <button class="link-btn" @onclick="() => AddSubsetEntry(activeSet.Id)">+ add variable</button>
-                    }
-                </div>
+                <VariableSetEditor BaseEntries="BaseEntries"
+                                   OnAddBaseEntry="AddBaseEntry"
+                                   Subsets="_subsetOptions"
+                                   ActiveSubsetId="_collection.ActiveCollectionVariableSetId"
+                                   OnActiveSubsetChanged="OnSubsetChanged"
+                                   SubsetEntries="ActiveSubsetEntries"
+                                   OnAddSubset="AddSubset"
+                                   OnDeleteSubset="DeleteSubset"
+                                   OnAddSubsetEntry="AddSubsetEntryActive"
+                                   OnEntryChanged="SaveEntry"
+                                   OnToggleSecret="ToggleSecret"
+                                   OnRemoveEntry="RemoveEntry"
+                                   BaseLabel="Base"
+                                   SubsetLabel="Sous-ensemble"
+                                   AddBaseLabel="+ ajouter une variable de collection" />
             }
             else
             {
@@ -139,9 +82,33 @@ else
     private Collection? _collection;
     private int _loadedCollectionId = -1;
     private Section _section = Section.Variables;
-    private readonly HashSet<int> _revealed = new();
     private readonly ConfirmState _confirm = new();
     private readonly PromptState _prompt = new();
+
+    // Projections fed to VariableSetEditor. Recomputed on each render from the loaded
+    // collection, so they always reflect the latest reload.
+    private IReadOnlyList<IVariableEntry> BaseEntries
+    {
+        get
+        {
+            var baseSet = _collection?.VariableSets.FirstOrDefault(s => s.IsBase);
+            return baseSet is null ? [] : baseSet.Entries;
+        }
+    }
+
+    private IReadOnlyList<VariableSubsetOption> _subsetOptions =>
+        _collection?.VariableSets.Where(s => !s.IsBase)
+            .Select(s => new VariableSubsetOption(s.Id, s.Name)).ToList() ?? [];
+
+    private IReadOnlyList<IVariableEntry> ActiveSubsetEntries
+    {
+        get
+        {
+            var active = _collection?.VariableSets
+                .FirstOrDefault(s => s.Id == _collection.ActiveCollectionVariableSetId && !s.IsBase);
+            return active is null ? [] : active.Entries;
+        }
+    }
 
     protected override void OnInitialized()
     {
@@ -185,41 +152,22 @@ else
 
     // ── Collection variables ────────────────────────────────────────────────────
 
-    private async Task OnEntryKeyChanged(CollectionVariableEntry v, ChangeEventArgs e)
+    // The editor mutates the entry in place (key/value) and calls this on blur to persist.
+    private async Task SaveEntry(IVariableEntry v)
     {
-        v.Key = e.Value?.ToString() ?? "";
         await using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariableEntries.Update(v);
+        db.CollectionVariableEntries.Update((CollectionVariableEntry)v);
         await db.SaveChangesAsync();
         State.NotifyChanged();
     }
 
-    private async Task OnEntryValueChanged(CollectionVariableEntry v, ChangeEventArgs e)
-    {
-        v.Value = e.Value?.ToString() ?? "";
-        await using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariableEntries.Update(v);
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
-    }
-
-    private async Task ToggleSecret(CollectionVariableEntry v)
+    private async Task ToggleSecret(IVariableEntry v)
     {
         v.IsSecret = !v.IsSecret;
-        if (!v.IsSecret) _revealed.Remove(v.Id);
-        await using var db = await DbFactory.CreateDbContextAsync();
-        db.CollectionVariableEntries.Update(v);
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
+        await SaveEntry(v);
     }
 
-    private void ToggleReveal(CollectionVariableEntry v)
-    {
-        if (!_revealed.Add(v.Id)) _revealed.Remove(v.Id);
-        StateHasChanged();
-    }
-
-    private async Task RemoveEntry(CollectionVariableEntry v)
+    private async Task RemoveEntry(IVariableEntry v)
     {
         var label = string.IsNullOrWhiteSpace(v.Key) ? "(vide)" : v.Key;
         if (!await _confirm.AskAsync($"Supprimer la variable « {label} » ?")) return;
@@ -248,8 +196,9 @@ else
         await ReloadAsync();
     }
 
-    private async Task AddSubsetEntry(int setId)
+    private async Task AddSubsetEntryActive()
     {
+        if (_collection?.ActiveCollectionVariableSetId is not int setId) return;
         await using var db = await DbFactory.CreateDbContextAsync();
         db.CollectionVariableEntries.Add(new CollectionVariableEntry { CollectionVariableSetId = setId });
         await db.SaveChangesAsync();
@@ -257,9 +206,8 @@ else
         await ReloadAsync();
     }
 
-    private async Task OnSubsetChanged(ChangeEventArgs e)
+    private async Task OnSubsetChanged(int? id)
     {
-        var id = int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null;
         await using var db = await DbFactory.CreateDbContextAsync();
         var col = await db.Collections.FirstAsync(x => x.Id == CollectionId);
         col.ActiveCollectionVariableSetId = id;
@@ -282,8 +230,10 @@ else
         await ReloadAsync();
     }
 
-    private async Task DeleteSubset(CollectionVariableSet s)
+    private async Task DeleteSubset(int subsetId)
     {
+        var s = _collection?.VariableSets.FirstOrDefault(x => x.Id == subsetId);
+        if (s is null) return;
         var msg = s.Entries.Count > 0
             ? $"Supprimer le sous-ensemble « {s.Name} » et ses {s.Entries.Count} variable(s) ?"
             : $"Supprimer le sous-ensemble « {s.Name} » ?";
