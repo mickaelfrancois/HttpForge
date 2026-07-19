@@ -403,6 +403,70 @@
     padding: 0.5rem 1rem 1rem;
 }
 
+/* Response history */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-row {
+    display: grid;
+    grid-template-columns: 3rem 4rem 1fr auto auto;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-main);
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0.4rem 0.3rem;
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.history-row:hover {
+    background: var(--bg-hover);
+}
+
+.history-status {
+    font-weight: 700;
+    text-align: center;
+    border-radius: 3px;
+    padding: 0.1rem 0;
+}
+
+.history-method {
+    font-weight: 700;
+    font-size: 0.72rem;
+}
+
+.history-method.method-get { color: var(--method-get); }
+.history-method.method-post { color: var(--method-post); }
+.history-method.method-put { color: var(--method-put); }
+.history-method.method-patch { color: var(--method-patch); }
+.history-method.method-delete { color: var(--method-delete); }
+
+.history-url {
+    font-family: 'Consolas', monospace;
+    color: var(--text-code);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.history-info {
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-family: 'Consolas', monospace;
+}
+
+.history-time {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
 .header-table {
     width: 100%;
     border-collapse: collapse;

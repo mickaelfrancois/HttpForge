@@ -298,36 +298,66 @@ else
             {
                 <div class="response-empty">No response yet. Click <b>Send</b>.</div>
             }
-            else if (tab.Result.Error is not null)
-            {
-                <div class="response-error">
-                    <strong>Error:</strong> @tab.Result.Error
-                </div>
-            }
             else
             {
+                var _isError = tab.Result.Error is not null;
                 <div class="response-meta">
-                    <span class="status status-@StatusClass(tab.Result.StatusCode)">@tab.Result.StatusCode @tab.Result.ReasonPhrase</span>
-                    <span>⏱ @tab.Result.ElapsedMs ms</span>
-                    <span>📦 @tab.Result.BodyBytes B</span>
-                    <button class="tab @(tab.ActiveResponseTab == "Body" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Body")">Body</button>
-                    <button class="tab @(tab.ActiveResponseTab == "Headers" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Headers")">Headers (@tab.Result.Headers.Count)</button>
-                    @if (tab.Result.Timing is not null)
+                    @if (_isError)
                     {
-                        <button class="tab @(tab.ActiveResponseTab == "Timing" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Timing")">Timing</button>
+                        <span class="status status-0xx">Erreur</span>
                     }
-                    @if (tab.ScriptResult is not null)
+                    else
                     {
-                        <button class="tab @(tab.ActiveResponseTab == "Script" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Script")">
-                            <span class="script-tab-icon @(tab.ScriptResult.Error is null ? "script-tab-icon--ok" : "script-tab-icon--error")">
-                                @(tab.ScriptResult.Error is null ? "✓" : "✗")
-                            </span>
-                            Script
-                        </button>
+                        <span class="status status-@StatusClass(tab.Result.StatusCode)">@tab.Result.StatusCode @tab.Result.ReasonPhrase</span>
+                        <span>⏱ @tab.Result.ElapsedMs ms</span>
+                        <span>📦 @FormatBytes(tab.Result.BodyBytes)</span>
+                    }
+                    <button class="tab @(tab.ActiveResponseTab == "Body" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Body")">Body</button>
+                    @if (!_isError)
+                    {
+                        <button class="tab @(tab.ActiveResponseTab == "Headers" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Headers")">Headers (@tab.Result.Headers.Count)</button>
+                        @if (tab.Result.Timing is not null)
+                        {
+                            <button class="tab @(tab.ActiveResponseTab == "Timing" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Timing")">Timing</button>
+                        }
+                        @if (tab.ScriptResult is not null)
+                        {
+                            <button class="tab @(tab.ActiveResponseTab == "Script" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "Script")">
+                                <span class="script-tab-icon @(tab.ScriptResult.Error is null ? "script-tab-icon--ok" : "script-tab-icon--error")">
+                                    @(tab.ScriptResult.Error is null ? "✓" : "✗")
+                                </span>
+                                Script
+                            </button>
+                        }
+                    }
+                    @if (tab.History.Count > 0)
+                    {
+                        <button class="tab @(tab.ActiveResponseTab == "History" ? "active" : "")" @onclick="@(() => tab.ActiveResponseTab = "History")">Historique (@tab.History.Count)</button>
                     }
                 </div>
                 <div class="response-body">
-                    @if (tab.ActiveResponseTab == "Timing" && tab.Result.Timing is { } tm)
+                    @if (tab.ActiveResponseTab == "History")
+                    {
+                        <div class="history-list">
+                            @foreach (var entry in tab.History)
+                            {
+                                <button class="history-row" @onclick="() => ViewHistoryEntry(tab, entry)">
+                                    <span class="history-status status-@StatusClass(entry.Result.StatusCode)">@(entry.Result.Error is null ? entry.Result.StatusCode.ToString() : "ERR")</span>
+                                    <span class="history-method method-@entry.Method.ToString().ToLower()">@entry.Method</span>
+                                    <span class="history-url" title="@entry.Url">@entry.Url</span>
+                                    <span class="history-info">@entry.Result.ElapsedMs ms · @FormatBytes(entry.Result.BodyBytes)</span>
+                                    <span class="history-time">@entry.At.ToString("HH:mm:ss")</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (_isError)
+                    {
+                        <div class="response-error">
+                            <strong>Error:</strong> @tab.Result.Error
+                        </div>
+                    }
+                    else if (tab.ActiveResponseTab == "Timing" && tab.Result.Timing is { } tm)
                     {
                         <div class="timing-pane">
                             @{ var _tot = Math.Max(1, tm.TotalMs); }
@@ -1008,6 +1038,11 @@ else
                         ApplyScriptMutationsToMemory(scriptResult);
                 }
             }
+
+            // Record this response in the tab's bounded history (most recent first). Uses
+            // the send-time resolved URL and includes the script outcome for later viewing.
+            var historyUrl = VariablePreview.BuildFullUrl(request.Url, request.QueryParams, resolvedVariables);
+            tab.AddHistory(new ResponseHistoryEntry(DateTime.Now, request.Method, historyUrl, result, tab.ScriptResult));
         }
         catch (OperationCanceledException)
         {
@@ -1026,6 +1061,23 @@ else
     {
         Active?.SendCts?.Cancel();
     }
+
+    // Re-displays a past response by pointing the pane at its stored result — no re-send.
+    // The latest response is still History[0], so this is non-destructive.
+    private void ViewHistoryEntry(TabState tab, ResponseHistoryEntry entry)
+    {
+        tab.Result = entry.Result;
+        tab.ScriptResult = entry.ScriptResult;
+        tab.ActiveResponseTab = "Body";
+    }
+
+    // Human-readable byte size for the response meta and history rows.
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} o",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} Ko",
+        _ => $"{bytes / (1024.0 * 1024):0.#} Mo"
+    };
 
     // ── Empty-state actions ─────────────────────────────────────────────────────
 

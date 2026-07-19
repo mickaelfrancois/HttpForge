@@ -26,6 +26,18 @@ public class TabState
     public bool IsSending { get; set; }
     public CancellationTokenSource? SendCts { get; set; }
 
+    // Bounded, in-memory response history (most recent first). Lives for the tab's lifetime;
+    // not persisted. Capped so a long-lived tab hammering an endpoint can't grow unbounded.
+    public const int MaxHistory = 20;
+    public List<ResponseHistoryEntry> History { get; } = new();
+
+    public void AddHistory(ResponseHistoryEntry entry)
+    {
+        History.Insert(0, entry);
+        if (History.Count > MaxHistory)
+            History.RemoveRange(MaxHistory, History.Count - MaxHistory);
+    }
+
     // A locked tab is skipped by every bulk close and hides its close button; only the
     // explicit "Fermer l'onglet" context-menu action can still close it.
     public bool IsLocked { get; set; }
