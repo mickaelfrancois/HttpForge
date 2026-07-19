@@ -425,6 +425,22 @@
 .status-5xx { color: var(--status-5xx-text); background: var(--status-5xx-bg); }
 .status-0xx { color: var(--status-0xx-text); background: var(--status-0xx-bg); }
 
+.meta-copy {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+}
+
+.meta-copy:hover {
+    color: var(--text-primary);
+    background: var(--bg-input-dark);
+}
+
 .response-body {
     flex: 1;
     min-height: 0;
