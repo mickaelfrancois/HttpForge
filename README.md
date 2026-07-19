@@ -134,6 +134,27 @@ volumes:
 docker compose up -d --build
 ```
 
+### Reaching services running on the host
+
+Inside a container, `localhost` refers to the **container itself**, not your host machine. So a request to `http://localhost:3000` typed into HttpForge will hit the container, not a service running on your host. To target a service on the host, use the special hostname `host.docker.internal` instead:
+
+```
+http://host.docker.internal:3000/api
+```
+
+- **Docker Desktop (Windows / macOS)** — `host.docker.internal` resolves out of the box, no extra configuration needed.
+- **Linux** — it is not defined by default. Add the host-gateway mapping to your `docker-compose.yml`:
+
+  ```yaml
+  services:
+    httpforge:
+      # ...existing config...
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+  ```
+
+  (Or, with `docker run`, pass `--add-host=host.docker.internal:host-gateway`.) This line is harmless on Docker Desktop, so it is safe to keep in a cross-platform compose file.
+
 ### Behind a reverse proxy
 
 HttpForge listens on plain HTTP inside the container. TLS termination should be handled by your reverse proxy (nginx, Caddy, Traefik, etc.). Example with Caddy:
