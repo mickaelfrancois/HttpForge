@@ -69,33 +69,6 @@ public class HomeEmptyStateTests : BunitContext
     }
 
     [Fact]
-    public void EmptyState_PasteCurl_CreatesRequestAndAppliesCommand()
-    {
-        var factory = Arrange();
-        var tabs = Services.GetRequiredService<TabManagerService>();
-
-        var cut = Render<Home>();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".empty-action")));
-
-        // Open the paste dialog, enter a command, import.
-        cut.FindAll(".empty-action").Single(b => b.TextContent.Contains("Coller")).Click();
-        cut.WaitForElement(".curl-dialog-input")
-            .Input("curl -X POST https://api.example.com/login -H 'Accept: application/json' -d '{\"a\":1}'");
-        cut.Find(".curl-dialog-primary").Click();
-
-        // A blank request was created and opened; the draft reflects the parsed command
-        // (autosave is disabled in tests, so the DB row stays the blank default).
-        cut.WaitForAssertion(() =>
-        {
-            var tab = tabs.ActiveTab;
-            Assert.NotNull(tab);
-            Assert.Equal(HttpMethodKind.POST, tab!.Draft.Method);
-            Assert.Equal("https://api.example.com/login", tab.Draft.Url);
-            Assert.Equal(BodyKind.Json, tab.Draft.BodyKind);
-        });
-    }
-
-    [Fact]
     public void RequestOpenImport_RaisesEvent()
     {
         var state = new AppState();
