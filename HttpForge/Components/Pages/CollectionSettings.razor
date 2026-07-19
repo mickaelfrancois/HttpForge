@@ -1,7 +1,6 @@
 @rendermode InteractiveServer
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
-@inject IJSRuntime JS
 @implements IDisposable
 
 @if (_collection is null)
@@ -124,6 +123,14 @@ else
                OnConfirm="_confirm.Confirm"
                OnCancel="_confirm.Cancel" />
 
+<PromptDialog Visible="_prompt.Visible"
+              Title="@_prompt.Title"
+              Message="@_prompt.Message"
+              ConfirmLabel="@_prompt.ConfirmLabel"
+              Placeholder="@_prompt.Placeholder"
+              OnConfirm="_prompt.Submit"
+              OnCancel="_prompt.Cancel" />
+
 @code {
     private enum Section { Variables, Headers }
 
@@ -134,11 +141,13 @@ else
     private Section _section = Section.Variables;
     private readonly HashSet<int> _revealed = new();
     private readonly ConfirmState _confirm = new();
+    private readonly PromptState _prompt = new();
 
     protected override void OnInitialized()
     {
         State.OnChange += OnStateChanged;
         _confirm.OnChange = () => InvokeAsync(StateHasChanged);
+        _prompt.OnChange = () => InvokeAsync(StateHasChanged);
     }
 
     // Loads on first render and whenever the hosting tab targets a different collection.
@@ -260,7 +269,7 @@ else
 
     private async Task AddSubset()
     {
-        var name = await JS.InvokeAsync<string?>("prompt", "Sub-set name:");
+        var name = await _prompt.AskAsync("Nom du sous-ensemble :", placeholder: "ex. Staging");
         if (string.IsNullOrWhiteSpace(name)) return;
         await using var db = await DbFactory.CreateDbContextAsync();
         var col = await db.Collections.FirstAsync(x => x.Id == CollectionId);
