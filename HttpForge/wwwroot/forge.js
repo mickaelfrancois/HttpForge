@@ -248,6 +248,38 @@ window.forge.viewer = {
     }
 };
 
+// Global keyboard shortcuts for the request workspace. Ctrl/Cmd+Enter sends the active
+// request, Ctrl/Cmd+S saves it. init() purges any previous handler first (like forge.dnd)
+// so a re-created Home component never stacks listeners (which would fire multiple sends).
+window.forge.shortcuts = {
+    _ref: null,
+    _handler: null,
+
+    init(dotnetRef) {
+        if (this._handler) this.dispose();
+        this._ref = dotnetRef;
+        const handler = (e) => {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this._ref?.invokeMethodAsync('SendShortcut').catch(() => {});
+            } else if (e.key === 's' || e.key === 'S') {
+                // Always suppress the browser's Save dialog, even when nothing is dirty.
+                e.preventDefault();
+                this._ref?.invokeMethodAsync('SaveShortcut').catch(() => {});
+            }
+        };
+        document.addEventListener('keydown', handler);
+        this._handler = handler;
+    },
+
+    dispose() {
+        if (this._handler) document.removeEventListener('keydown', this._handler);
+        this._handler = null;
+        this._ref = null;
+    }
+};
+
 window.forge.dnd = {
     _ref: null,
     _dragValue: null,

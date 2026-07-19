@@ -258,6 +258,29 @@
     font-style: italic;
 }
 
+.response-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1rem;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--border-input);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: forge-spin 0.7s linear infinite;
+}
+
+@keyframes forge-spin {
+    to { transform: rotate(360deg); }
+}
+
 .response-error {
     padding: 1rem;
     color: var(--error-text);

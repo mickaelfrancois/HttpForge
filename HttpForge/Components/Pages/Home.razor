@@ -263,7 +263,14 @@ else
         </div>
 
         <div class="response-pane">
-            @if (tab.Result is null)
+            @if (tab.IsSending)
+            {
+                <div class="response-loading">
+                    <span class="spinner"></span>
+                    <span>Envoi de la requête…</span>
+                </div>
+            }
+            else if (tab.Result is null)
             {
                 <div class="response-empty">No response yet. Click <b>Send</b>.</div>
             }
@@ -440,6 +447,9 @@ else
     private Action? _tabsOnChange;
     private Action<int>? _tabRemoved;
 
+    // Reference handed to forge.shortcuts so the global keydown listener can invoke Send/Save.
+    private DotNetObjectReference<Home>? _shortcutsRef;
+
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
@@ -460,6 +470,8 @@ else
         if (firstRender)
         {
             await Tabs.InitAsync(JS);
+            _shortcutsRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("forge.shortcuts.init", _shortcutsRef);
             await LoadActiveTabContextAsync();
             await InvokeAsync(StateHasChanged);
         }
@@ -476,7 +488,11 @@ else
         // shared with TabManagerService, and disposed by the container at circuit end.
         // Disposing it on component teardown would leave a re-created Home (internal
         // navigation) with a disposed saver whose Schedule is a silent no-op.
-        await Task.CompletedTask;
+
+        // Detach the global keyboard listener so a re-created Home doesn't stack handlers
+        // (mirrors forge.dnd). JS interop may fail if the circuit is already gone — ignore.
+        try { await JS.InvokeVoidAsync("forge.shortcuts.dispose"); } catch { /* circuit closed */ }
+        _shortcutsRef?.Dispose();
     }
 
     private async void OnStateChanged()
@@ -969,6 +985,26 @@ else
     private void CancelSend()
     {
         Active?.SendCts?.Cancel();
+    }
+
+    // ── Keyboard shortcuts (invoked from forge.shortcuts) ──────────────────────
+
+    // Ctrl/Cmd+Enter — send the active request. No-op if the active tab isn't a request
+    // or a send is already in flight (SendAsync also guards on _request being loaded).
+    [JSInvokable]
+    public async Task SendShortcut()
+    {
+        if (Active is not { Kind: TabKind.Request } tab || tab.IsSending) return;
+        await SendAsync();
+    }
+
+    // Ctrl/Cmd+Save — save the active draft. No-op when nothing changed; the browser's
+    // own save dialog is already suppressed (preventDefault) on the JS side.
+    [JSInvokable]
+    public async Task SaveShortcut()
+    {
+        if (Active is not { Kind: TabKind.Request } tab || !tab.Draft.IsDirty) return;
+        await SaveDraftAsync(forceOverwrite: false);
     }
 
     private void ApplyScriptMutationsToMemory(ScriptResult result)
