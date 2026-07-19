@@ -287,6 +287,14 @@
     }
 </div>
 
+<ConfirmDialog Visible="_confirm.Visible"
+               Title="@_confirm.Title"
+               Message="@_confirm.Message"
+               ConfirmLabel="@_confirm.ConfirmLabel"
+               Danger="_confirm.Danger"
+               OnConfirm="_confirm.Confirm"
+               OnCancel="_confirm.Cancel" />
+
 @code {
     private List<Collection> _collections = new();
     private List<CollectionFolder> _allFolders = [];
@@ -317,10 +325,12 @@
     private bool _shouldFocusCollectionRename;
     private ElementReference _collectionRenameInput;
     private DotNetObjectReference<NavMenu>? _dndRef;
+    private readonly ConfirmState _confirm = new();
 
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
+        _confirm.OnChange = () => InvokeAsync(StateHasChanged);
         await LoadSettingsAsync();
         await ReloadAsync();
     }
@@ -868,9 +878,9 @@
     private async Task DeleteCollection(Collection c)
     {
         var msg = c.Requests.Count > 0
-            ? $"Delete collection \"{c.Name}\" and its {c.Requests.Count} request(s)?"
-            : $"Delete collection \"{c.Name}\"?";
-        if (!await Confirm(msg)) return;
+            ? $"Supprimer la collection « {c.Name} » et ses {c.Requests.Count} requête(s) ?"
+            : $"Supprimer la collection « {c.Name} » ?";
+        if (!await _confirm.AskAsync(msg)) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Collections.Remove(await db.Collections.FirstAsync(x => x.Id == c.Id));
         await db.SaveChangesAsync();
@@ -936,9 +946,9 @@
     private async Task DeleteSubset(AppEnvironment s)
     {
         var msg = s.Variables.Count > 0
-            ? $"Delete sub-set \"{s.Name}\" and its {s.Variables.Count} variable(s)?"
-            : $"Delete sub-set \"{s.Name}\"?";
-        if (!await Confirm(msg)) return;
+            ? $"Supprimer le sous-ensemble « {s.Name} » et ses {s.Variables.Count} variable(s) ?"
+            : $"Supprimer le sous-ensemble « {s.Name} » ?";
+        if (!await _confirm.AskAsync(msg)) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == s.Id));
         var wasActive = State.SelectedEnvironmentId == s.Id;
@@ -972,8 +982,8 @@
 
     private async Task RemoveVar(EnvironmentVariable v)
     {
-        var label = string.IsNullOrWhiteSpace(v.Key) ? "(empty)" : v.Key;
-        if (!await Confirm($"Delete variable \"{label}\"?")) return;
+        var label = string.IsNullOrWhiteSpace(v.Key) ? "(vide)" : v.Key;
+        if (!await _confirm.AskAsync($"Supprimer la variable « {label} » ?")) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.EnvironmentVariables.Remove(await db.EnvironmentVariables.FirstAsync(x => x.Id == v.Id));
         await db.SaveChangesAsync();
@@ -1035,6 +1045,4 @@
         return false;
     }
 
-    private ValueTask<bool> Confirm(string message)
-        => JS.InvokeAsync<bool>("confirm", message);
 }

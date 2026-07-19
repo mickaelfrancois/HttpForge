@@ -1,0 +1,63 @@
+@* Reusable confirmation modal. Presentational: the parent owns Visible and the callbacks
+   (typically via a ConfirmState helper). Reuses the global hf-modal styling; closes on
+   outside click, Escape (cancel) and Enter (confirm). *@
+
+@if (Visible)
+{
+    <div class="hf-modal-backdrop" @onclick="OnCancelClick">
+        <div class="hf-modal" tabindex="0" @ref="_modalRef"
+             @onclick:stopPropagation
+             @onkeydown="OnKeyDown">
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <p><strong>@Title</strong></p>
+            }
+            <p>@Message</p>
+            <div class="confirm-actions">
+                <button class="@(Danger ? "btn-danger" : "")" @onclick="OnConfirmClick">@ConfirmLabel</button>
+                <button @onclick="OnCancelClick">@CancelLabel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string ConfirmLabel { get; set; } = "Supprimer";
+    [Parameter] public string CancelLabel { get; set; } = "Annuler";
+    [Parameter] public bool Danger { get; set; } = true;
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private ElementReference _modalRef;
+    private bool _focusQueued;
+    private bool _wasVisible;
+
+    protected override void OnParametersSet()
+    {
+        // Queue focus each time the dialog opens so Enter/Escape work without a click.
+        if (Visible && !_wasVisible) _focusQueued = true;
+        _wasVisible = Visible;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusQueued && Visible)
+        {
+            _focusQueued = false;
+            try { await _modalRef.FocusAsync(); } catch { /* element gone: ignore */ }
+        }
+    }
+
+    private async Task OnConfirmClick() => await OnConfirm.InvokeAsync();
+
+    private async Task OnCancelClick() => await OnCancel.InvokeAsync();
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await OnCancel.InvokeAsync();
+        else if (e.Key == "Enter") await OnConfirm.InvokeAsync();
+    }
+}

@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
-@inject IJSRuntime JS
 @inject TabManagerService Tabs
 
 @* Renders the contents of a collection root (ParentFolderId=null) or a folder. *@
@@ -117,6 +116,13 @@
     </div>
 }
 
+<ConfirmDialog Visible="_confirm.Visible"
+               Message="@_confirm.Message"
+               ConfirmLabel="@_confirm.ConfirmLabel"
+               Danger="_confirm.Danger"
+               OnConfirm="_confirm.Confirm"
+               OnCancel="_confirm.Cancel" />
+
 @code {
     [Parameter, EditorRequired] public int CollectionId { get; set; }
     [Parameter] public int? ParentFolderId { get; set; }
@@ -162,6 +168,10 @@
     // -1 = add at this level (root of collection node), positive int = inside that folder
     private int? _addingUnder;
     private string _addingName = string.Empty;
+    private readonly ConfirmState _confirm = new();
+
+    protected override void OnInitialized() =>
+        _confirm.OnChange = () => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -254,11 +264,11 @@
     private async Task DeleteFolder(CollectionFolder folder)
     {
         var (folderCount, requestCount) = CountDescendants(folder.Id);
-        var msg = $"Delete folder \"{folder.Name}\"";
+        var msg = $"Supprimer le dossier « {folder.Name} »";
         if (requestCount > 0 || folderCount > 0)
-            msg += $" and its {requestCount} request(s) and {folderCount} sub-folder(s)";
-        msg += "?";
-        if (!await JS.InvokeAsync<bool>("confirm", msg)) return;
+            msg += $" et ses {requestCount} requête(s) et {folderCount} sous-dossier(s)";
+        msg += " ?";
+        if (!await _confirm.AskAsync(msg)) return;
 
         var ids = GetAllDescendantFolderIds(folder.Id);
 

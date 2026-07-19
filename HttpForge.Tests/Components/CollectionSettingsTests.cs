@@ -10,8 +10,9 @@ namespace HttpForge.Tests.Components;
 
 // Exercises the CollectionSettings tab against a real in-memory DbContextFactory, so the
 // new tab's DB-write logic (variables, secrets, sub-sets, default headers) has a net —
-// the slice-2 matrix from plan.md. JS interop runs in Loose mode; prompt/confirm are
-// stubbed where a handler depends on their return value.
+// the slice-2 matrix from plan.md. JS interop runs in Loose mode; `prompt` is stubbed where
+// a handler depends on its return value. Deletions now confirm through the ConfirmDialog
+// modal (no native confirm()), so those tests click the modal's button.
 public class CollectionSettingsTests : BunitContext
 {
     private readonly IDbContextFactory<AppDbContext> _factory;
@@ -100,7 +101,6 @@ public class CollectionSettingsTests : BunitContext
     [Fact]
     public void Variables_RemoveBaseEntry_DeletesIt()
     {
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var cut = RenderTab();
         cut.FindAll("button.link-btn")
             .Single(b => b.TextContent.Contains("add collection variable"))
@@ -108,9 +108,30 @@ public class CollectionSettingsTests : BunitContext
 
         // The ✕ delete button is the last button in the row.
         cut.Find(".var-row").QuerySelectorAll("button").Last().Click();
+        // Confirm in the ConfirmDialog (replaces the old native confirm()).
+        cut.WaitForElement(".confirm-actions button.btn-danger").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            using var db = Db();
+            Assert.Empty(db.CollectionVariableEntries);
+        });
+    }
+
+    [Fact]
+    public void Variables_RemoveBaseEntry_Cancelled_KeepsIt()
+    {
+        var cut = RenderTab();
+        cut.FindAll("button.link-btn")
+            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Click();
+
+        cut.Find(".var-row").QuerySelectorAll("button").Last().Click();
+        // Dismiss the confirmation — the entry must survive.
+        cut.WaitForElement(".confirm-actions button:not(.btn-danger)").Click();
 
         using var db = Db();
-        Assert.Empty(db.CollectionVariableEntries);
+        Assert.Single(db.CollectionVariableEntries);
     }
 
     [Fact]
@@ -145,15 +166,18 @@ public class CollectionSettingsTests : BunitContext
     public void Variables_DeleteSubset_RemovesAndClearsActive()
     {
         JSInterop.Setup<string?>("prompt", _ => true).SetResult("Staging");
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var cut = RenderTab();
         cut.Find("button[title='New sub-set']").Click();
 
         cut.Find("button[title='Delete sub-set']").Click();
+        cut.WaitForElement(".confirm-actions button.btn-danger").Click();
 
-        using var db = Db();
-        Assert.Empty(db.CollectionVariableSets.Where(s => !s.IsBase && s.CollectionId == _collectionId));
-        Assert.Null(db.Collections.Single(c => c.Id == _collectionId).ActiveCollectionVariableSetId);
+        cut.WaitForAssertion(() =>
+        {
+            using var db = Db();
+            Assert.Empty(db.CollectionVariableSets.Where(s => !s.IsBase && s.CollectionId == _collectionId));
+            Assert.Null(db.Collections.Single(c => c.Id == _collectionId).ActiveCollectionVariableSetId);
+        });
     }
 
     [Fact]

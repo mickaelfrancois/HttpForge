@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject AppState State
-@inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject TabManagerService Tabs
 
@@ -57,6 +56,13 @@
     }
 </div>
 
+<ConfirmDialog Visible="_confirm.Visible"
+               Message="@_confirm.Message"
+               ConfirmLabel="@_confirm.ConfirmLabel"
+               Danger="_confirm.Danger"
+               OnConfirm="_confirm.Confirm"
+               OnCancel="_confirm.Cancel" />
+
 @code {
     [Parameter, EditorRequired] public HttpRequestItem Request { get; set; } = null!;
     [Parameter] public EventCallback<int> OnChanged { get; set; }
@@ -67,6 +73,10 @@
     private string _renameValue = string.Empty;
     private bool _shouldFocusRename;
     private ElementReference _renameInput;
+    private readonly ConfirmState _confirm = new();
+
+    protected override void OnInitialized() =>
+        _confirm.OnChange = () => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -157,7 +167,7 @@
     {
         _menuOpen = false;
         var label = string.IsNullOrWhiteSpace(Request.Name) ? "Untitled" : Request.Name;
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete request \"{label}\"?")) return;
+        if (!await _confirm.AskAsync($"Supprimer la requête « {label} » ?")) return;
         using var db = await DbFactory.CreateDbContextAsync();
         db.Requests.Remove(await db.Requests.FirstAsync(x => x.Id == Request.Id));
         await db.SaveChangesAsync();
