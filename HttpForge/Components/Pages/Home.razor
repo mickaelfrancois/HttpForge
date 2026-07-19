@@ -21,8 +21,18 @@
 @if (Active is null)
 {
     <div class="empty-state">
+        <div class="empty-mark">⚡</div>
         <h2>HttpForge</h2>
-        <p>Select or create a request from the sidebar to get started.</p>
+        <p>
+            @(_hasCollections
+                ? "Sélectionnez une requête à gauche, ou créez-en une nouvelle."
+                : "Créez votre première requête pour démarrer.")
+        </p>
+        <div class="empty-actions">
+            <button class="empty-action empty-action--primary" @onclick="NewRequestAsync">＋ Nouvelle requête</button>
+            <button class="empty-action" @onclick="() => _showCurlImport = true">⇤ Coller cURL</button>
+            <button class="empty-action" @onclick="() => State.RequestOpenImport()">↓ Importer…</button>
+        </div>
     </div>
 }
 else if (Active.Kind == TabKind.CollectionSettings)
@@ -51,10 +61,6 @@ else
             <button title="Fermer" @onclick="() => _curlNotice = null">✕</button>
         </div>
     }
-
-    <CurlImportDialog Visible="_showCurlImport"
-                      OnImport="ImportCurlAsync"
-                      OnCancel="() => { _showCurlImport = false; }" />
 
     @* Keyed on the Draft *instance*: switching tabs (different draft) or reloading from
        server (replaced draft) recreates the whole subtree, so CodeMirror editors are
@@ -435,6 +441,11 @@ else
     }
 }
 
+@* Rendered at page level so it works from the empty state (no active tab) too. *@
+<CurlImportDialog Visible="_showCurlImport"
+                  OnImport="ImportCurlAsync"
+                  OnCancel="() => { _showCurlImport = false; }" />
+
 @code {
     private TabState? Active => Tabs.ActiveTab;
 
@@ -465,6 +476,9 @@ else
     // cURL import/export UI state.
     private bool _showCurlImport;
     private string? _curlNotice;
+
+    // Whether any collection exists — drives the empty-state message.
+    private bool _hasCollections;
 
     private Action? _tabsOnChange;
     private Action<int>? _tabRemoved;
@@ -561,6 +575,10 @@ else
         var active = Active;
         if (active is null)
         {
+            // Empty state: drives the message ("first request" vs "select one") and never
+            // touches request/collection context.
+            await using (var probe = await DbFactory.CreateDbContextAsync())
+                _hasCollections = await probe.Collections.AnyAsync();
             _request = null;
             _collectionBase = null;
             _collectionSubset = null;
@@ -1009,44 +1027,80 @@ else
         Active?.SendCts?.Cancel();
     }
 
+    // ── Empty-state actions ─────────────────────────────────────────────────────
+
+    // Creates a blank request and opens it — the empty-state "Nouvelle requête" CTA.
+    private async Task NewRequestAsync()
+    {
+        var id = await CreateRequestAsync("New request");
+        if (id is not null) await Tabs.OpenTabAsync(id.Value);
+    }
+
+    // Creates a request in the selected collection, or the first one, or a brand-new
+    // collection when none exist yet. Notifies so NavMenu reveals it. Returns the new id;
+    // the caller decides whether to open a tab.
+    private async Task<int?> CreateRequestAsync(string name)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var collectionId = State.SelectedCollectionId is int sel
+                           && await db.Collections.AnyAsync(c => c.Id == sel)
+            ? sel
+            : await db.Collections.OrderBy(c => c.Name).Select(c => (int?)c.Id).FirstOrDefaultAsync();
+
+        if (collectionId is null)
+        {
+            var created = new Collection { Name = "Ma collection" };
+            db.Collections.Add(created);
+            await db.SaveChangesAsync();
+            collectionId = created.Id;
+        }
+
+        var request = new HttpRequestItem
+        {
+            CollectionId = collectionId.Value,
+            Name = string.IsNullOrWhiteSpace(name) ? "New request" : name,
+            Method = HttpMethodKind.GET,
+            Url = "https://"
+        };
+        db.Requests.Add(request);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+        return request.Id;
+    }
+
+    // A readable request name derived from a cURL URL (last path segment, else host).
+    private static string NameFromUrl(string url)
+    {
+        if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var seg = uri.Segments.LastOrDefault(s => s.Trim('/').Length > 0)?.Trim('/');
+            return string.IsNullOrEmpty(seg) ? uri.Host : seg;
+        }
+        return "New request";
+    }
+
     // ── cURL import / export ───────────────────────────────────────────────────
 
-    // Replaces the active draft with a fresh one built from the pasted cURL command.
-    // A NEW draft instance is assigned (not mutated) so the @key="tab.Draft" subtree —
-    // including the CodeMirror body editor — re-initializes with the imported content.
+    // Applies a pasted cURL command to a request. From the empty state (no active tab) a
+    // fresh request is created and opened first, so paste-to-import works cold.
     private async Task ImportCurlAsync(string curl)
     {
         _showCurlImport = false;
+        var parsed = Curl.Parse(curl);
+
+        if (Active is null)
+        {
+            var newId = await CreateRequestAsync(NameFromUrl(parsed.Url));
+            if (newId is null) return;
+            await Tabs.OpenTabAsync(newId.Value);
+        }
+
         if (Active is not { Kind: TabKind.Request } tab) return;
 
-        var parsed = Curl.Parse(curl);
-        var old = tab.Draft;
-        var draft = new RequestDraft
-        {
-            RequestId = old.RequestId,
-            LoadedAt = old.LoadedAt,
-            Name = old.Name,
-            Method = parsed.Method,
-            Url = parsed.Url,
-            BodyKind = parsed.BodyKind,
-            BodyContent = parsed.Body,
-            // Script and its trust flag belong to the request, not the cURL — keep them.
-            PostScript = old.PostScript,
-            PostScriptTrusted = old.PostScriptTrusted,
-            IgnoreTlsErrors = old.IgnoreTlsErrors || parsed.IgnoreTlsErrors,
-            Headers = parsed.Headers
-                .Select(h => new HeaderItem { HttpRequestItemId = old.RequestId, Key = h.Key, Value = h.Value, Enabled = true })
-                .ToList(),
-            // The parsed URL keeps its query string inline, so start from no separate params
-            // (avoids duplicating the query when the request is sent).
-            QueryParams = [],
-            FormFields = parsed.FormFields
-                .Select(f => new FormFieldItem { HttpRequestItemId = old.RequestId, Key = f.Key, Value = f.Value, Enabled = true })
-                .ToList(),
-            Variables = old.Variables.ToList()
-        };
-
-        tab.Draft = draft;
+        // A NEW draft instance is assigned (not mutated) so the @key="tab.Draft" subtree —
+        // including the CodeMirror body editor — re-initializes with the imported content.
+        tab.Draft = BuildDraftFromCurl(tab.Draft, parsed);
         tab.Method = parsed.Method.ToString();
         MarkDirtyAndSchedule(tab);
 
@@ -1056,6 +1110,32 @@ else
 
         await InvokeAsync(StateHasChanged);
     }
+
+    // Builds a fresh draft from a parsed cURL, preserving the request's identity and its
+    // script/variables (which don't come from the cURL).
+    private static RequestDraft BuildDraftFromCurl(RequestDraft old, CurlParseResult parsed) => new()
+    {
+        RequestId = old.RequestId,
+        LoadedAt = old.LoadedAt,
+        Name = old.Name,
+        Method = parsed.Method,
+        Url = parsed.Url,
+        BodyKind = parsed.BodyKind,
+        BodyContent = parsed.Body,
+        PostScript = old.PostScript,
+        PostScriptTrusted = old.PostScriptTrusted,
+        IgnoreTlsErrors = old.IgnoreTlsErrors || parsed.IgnoreTlsErrors,
+        Headers = parsed.Headers
+            .Select(h => new HeaderItem { HttpRequestItemId = old.RequestId, Key = h.Key, Value = h.Value, Enabled = true })
+            .ToList(),
+        // The parsed URL keeps its query string inline, so start from no separate params
+        // (avoids duplicating the query when the request is sent).
+        QueryParams = [],
+        FormFields = parsed.FormFields
+            .Select(f => new FormFieldItem { HttpRequestItemId = old.RequestId, Key = f.Key, Value = f.Value, Enabled = true })
+            .ToList(),
+        Variables = old.Variables.ToList()
+    };
 
     // Builds a cURL command from the active draft and copies it to the clipboard. Uses the
     // resolved URL and the request/collection header merge (mirroring RequestExecutor);

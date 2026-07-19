@@ -330,6 +330,7 @@
     protected override async Task OnInitializedAsync()
     {
         State.OnChange += OnStateChanged;
+        State.OpenImportRequested += OnOpenImportRequested;
         _confirm.OnChange = () => InvokeAsync(StateHasChanged);
         await LoadSettingsAsync();
         await ReloadAsync();
@@ -362,7 +363,15 @@
     {
         _disposed = true;
         State.OnChange -= OnStateChanged;
+        State.OpenImportRequested -= OnOpenImportRequested;
         _dndRef?.Dispose();
+    }
+
+    // Opens the import menu when another component (Home empty state) requests it.
+    private void OnOpenImportRequested()
+    {
+        _showImportMenu = true;
+        InvokeAsync(StateHasChanged);
     }
 
     [JSInvokable]
