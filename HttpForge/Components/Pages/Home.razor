@@ -30,7 +30,6 @@
         </p>
         <div class="empty-actions">
             <button class="empty-action empty-action--primary" @onclick="NewRequestAsync">＋ Nouvelle requête</button>
-            <button class="empty-action" @onclick="() => _showCurlImport = true">⇤ Coller cURL</button>
             <button class="empty-action" @onclick="() => State.RequestOpenImport()">↓ Importer…</button>
         </div>
     </div>
@@ -103,8 +102,6 @@ else
             }
             <button class="curl-btn" title="Copier la requête comme commande cURL"
                     @onclick="CopyAsCurlAsync">⎘ cURL</button>
-            <button class="curl-btn" title="Remplacer la requête depuis une commande cURL"
-                    @onclick="() => _showCurlImport = true">⇤ cURL</button>
             <span class="autosave-status">
                 @if (tab.IsAutoSaving)
                 {
@@ -481,11 +478,6 @@ else
     }
 }
 
-@* Rendered at page level so it works from the empty state (no active tab) too. *@
-<CurlImportDialog Visible="_showCurlImport"
-                  OnImport="ImportCurlAsync"
-                  OnCancel="() => { _showCurlImport = false; }" />
-
 @code {
     private TabState? Active => Tabs.ActiveTab;
 
@@ -513,8 +505,7 @@ else
     private DateTime? _conflictAt;
     private string? _reloadToast;
 
-    // cURL import/export UI state.
-    private bool _showCurlImport;
+    // Transient notice shown after a cURL export / body copy.
     private string? _curlNotice;
 
     // Whether any collection exists — drives the empty-state message.
@@ -1151,73 +1142,7 @@ else
         return request.Id;
     }
 
-    // A readable request name derived from a cURL URL (last path segment, else host).
-    private static string NameFromUrl(string url)
-    {
-        if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            var seg = uri.Segments.LastOrDefault(s => s.Trim('/').Length > 0)?.Trim('/');
-            return string.IsNullOrEmpty(seg) ? uri.Host : seg;
-        }
-        return "New request";
-    }
-
-    // ── cURL import / export ───────────────────────────────────────────────────
-
-    // Applies a pasted cURL command to a request. From the empty state (no active tab) a
-    // fresh request is created and opened first, so paste-to-import works cold.
-    private async Task ImportCurlAsync(string curl)
-    {
-        _showCurlImport = false;
-        var parsed = Curl.Parse(curl);
-
-        if (Active is null)
-        {
-            var newId = await CreateRequestAsync(NameFromUrl(parsed.Url));
-            if (newId is null) return;
-            await Tabs.OpenTabAsync(newId.Value);
-        }
-
-        if (Active is not { Kind: TabKind.Request } tab) return;
-
-        // A NEW draft instance is assigned (not mutated) so the @key="tab.Draft" subtree —
-        // including the CodeMirror body editor — re-initializes with the imported content.
-        tab.Draft = BuildDraftFromCurl(tab.Draft, parsed);
-        tab.Method = parsed.Method.ToString();
-        MarkDirtyAndSchedule(tab);
-
-        _curlNotice = parsed.Warnings.Count > 0
-            ? "cURL importé — avertissements : " + string.Join(" ; ", parsed.Warnings)
-            : "cURL importé.";
-
-        await InvokeAsync(StateHasChanged);
-    }
-
-    // Builds a fresh draft from a parsed cURL, preserving the request's identity and its
-    // script/variables (which don't come from the cURL).
-    private static RequestDraft BuildDraftFromCurl(RequestDraft old, CurlParseResult parsed) => new()
-    {
-        RequestId = old.RequestId,
-        LoadedAt = old.LoadedAt,
-        Name = old.Name,
-        Method = parsed.Method,
-        Url = parsed.Url,
-        BodyKind = parsed.BodyKind,
-        BodyContent = parsed.Body,
-        PostScript = old.PostScript,
-        PostScriptTrusted = old.PostScriptTrusted,
-        IgnoreTlsErrors = old.IgnoreTlsErrors || parsed.IgnoreTlsErrors,
-        Headers = parsed.Headers
-            .Select(h => new HeaderItem { HttpRequestItemId = old.RequestId, Key = h.Key, Value = h.Value, Enabled = true })
-            .ToList(),
-        // The parsed URL keeps its query string inline, so start from no separate params
-        // (avoids duplicating the query when the request is sent).
-        QueryParams = [],
-        FormFields = parsed.FormFields
-            .Select(f => new FormFieldItem { HttpRequestItemId = old.RequestId, Key = f.Key, Value = f.Value, Enabled = true })
-            .ToList(),
-        Variables = old.Variables.ToList()
-    };
+    // ── cURL export ─────────────────────────────────────────────────────────────
 
     // Builds a cURL command from the active draft and copies it to the clipboard. Uses the
     // resolved URL and the request/collection header merge (mirroring RequestExecutor);
