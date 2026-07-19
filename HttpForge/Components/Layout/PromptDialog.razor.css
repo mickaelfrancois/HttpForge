@@ -1,0 +1,31 @@
+.prompt-input {
+    width: 100%;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.85rem;
+}
+
+.prompt-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+/* Neutralize the global `.hf-modal button` top margin inside the actions row. */
+.prompt-actions button {
+    margin-top: 0;
+}
+
+.prompt-primary {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue) !important;
+}

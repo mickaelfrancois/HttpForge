@@ -1,0 +1,76 @@
+@* Reusable text-input modal (replaces window.prompt). Presentational: the parent owns
+   Visible and the callbacks (typically via a PromptState helper). Reuses the global
+   hf-modal styling; closes on outside click and Escape, submits on Enter. *@
+
+@if (Visible)
+{
+    <div class="hf-modal-backdrop" @onclick="OnCancelClick">
+        <div class="hf-modal" @onclick:stopPropagation>
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <p><strong>@Title</strong></p>
+            }
+            <p>@Message</p>
+            <input class="prompt-input"
+                   placeholder="@Placeholder"
+                   @bind="_value" @bind:event="oninput"
+                   @onkeydown="OnKeyDown"
+                   @ref="_inputRef" />
+            <div class="prompt-actions">
+                <button class="prompt-primary" @onclick="OnConfirmClick"
+                        disabled="@string.IsNullOrWhiteSpace(_value)">@ConfirmLabel</button>
+                <button @onclick="OnCancelClick">@CancelLabel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string ConfirmLabel { get; set; } = "OK";
+    [Parameter] public string CancelLabel { get; set; } = "Annuler";
+    [Parameter] public string Placeholder { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _value = string.Empty;
+    private ElementReference _inputRef;
+    private bool _wasVisible;
+    private bool _focusQueued;
+
+    protected override void OnParametersSet()
+    {
+        // Clear the field and queue focus each time the dialog opens.
+        if (Visible && !_wasVisible)
+        {
+            _value = string.Empty;
+            _focusQueued = true;
+        }
+        _wasVisible = Visible;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusQueued && Visible)
+        {
+            _focusQueued = false;
+            try { await _inputRef.FocusAsync(); } catch { /* element gone: ignore */ }
+        }
+    }
+
+    private async Task OnConfirmClick()
+    {
+        if (string.IsNullOrWhiteSpace(_value)) return;
+        await OnConfirm.InvokeAsync(_value);
+    }
+
+    private async Task OnCancelClick() => await OnCancel.InvokeAsync();
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await OnConfirmClick();
+        else if (e.Key == "Escape") await OnCancel.InvokeAsync();
+    }
+}

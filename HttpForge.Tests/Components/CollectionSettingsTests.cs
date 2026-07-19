@@ -38,6 +38,19 @@ public class CollectionSettingsTests : BunitContext
 
     private AppDbContext Db() => _factory.CreateDbContext();
 
+    // Adds a sub-set through the PromptDialog (replaces the old native prompt()).
+    private void CreateSubsetViaPrompt(IRenderedComponent<CollectionSettings> cut, string name)
+    {
+        cut.Find("button[title='New sub-set']").Click();
+        cut.WaitForElement(".prompt-input").Input(name);
+        cut.Find(".prompt-primary").Click();
+        cut.WaitForState(() =>
+        {
+            using var db = Db();
+            return db.CollectionVariableSets.Any(s => !s.IsBase && s.CollectionId == _collectionId);
+        });
+    }
+
     [Fact]
     public void Variables_AddBaseEntry_CreatesLazyBaseSetAndEntry()
     {
@@ -137,10 +150,9 @@ public class CollectionSettingsTests : BunitContext
     [Fact]
     public void Variables_AddSubset_ViaPrompt_CreatesAndActivates()
     {
-        JSInterop.Setup<string?>("prompt", _ => true).SetResult("Staging");
         var cut = RenderTab();
 
-        cut.Find("button[title='New sub-set']").Click();
+        CreateSubsetViaPrompt(cut, "Staging");
 
         using var db = Db();
         var subset = db.CollectionVariableSets.Single(s => !s.IsBase && s.CollectionId == _collectionId);
@@ -152,9 +164,8 @@ public class CollectionSettingsTests : BunitContext
     [Fact]
     public void Variables_ChangeSubsetDropdown_ToNone_ClearsActiveSet()
     {
-        JSInterop.Setup<string?>("prompt", _ => true).SetResult("Staging");
         var cut = RenderTab();
-        cut.Find("button[title='New sub-set']").Click();
+        CreateSubsetViaPrompt(cut, "Staging");
 
         cut.Find(".cs-row select").Change("");
 
@@ -165,11 +176,10 @@ public class CollectionSettingsTests : BunitContext
     [Fact]
     public void Variables_DeleteSubset_RemovesAndClearsActive()
     {
-        JSInterop.Setup<string?>("prompt", _ => true).SetResult("Staging");
         var cut = RenderTab();
-        cut.Find("button[title='New sub-set']").Click();
+        CreateSubsetViaPrompt(cut, "Staging");
 
-        cut.Find("button[title='Delete sub-set']").Click();
+        cut.WaitForElement("button[title='Delete sub-set']").Click();
         cut.WaitForElement(".confirm-actions button.btn-danger").Click();
 
         cut.WaitForAssertion(() =>
