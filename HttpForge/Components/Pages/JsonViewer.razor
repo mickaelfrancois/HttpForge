@@ -2,13 +2,29 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div class="json-viewer-wrap" @ref="_containerRef"></div>
+<div class="json-viewer">
+    <div class="jv-search">
+        <input class="jv-search-input" placeholder="Rechercher dans la réponse…"
+               value="@_term" @oninput="OnTermInput" @onkeydown="OnSearchKey" />
+        @if (!string.IsNullOrEmpty(_term))
+        {
+            <span class="jv-search-count">@(_matchCount == 0 ? "0" : $"{_current}/{_matchCount}")</span>
+            <button class="jv-search-btn" title="Précédent (Maj+Entrée)" @onclick="() => StepAsync(false)" disabled="@(_matchCount == 0)">▲</button>
+            <button class="jv-search-btn" title="Suivant (Entrée)" @onclick="() => StepAsync(true)" disabled="@(_matchCount == 0)">▼</button>
+            <button class="jv-search-btn" title="Effacer (Échap)" @onclick="ClearSearchAsync">✕</button>
+        }
+    </div>
+    <div class="json-viewer-wrap" @ref="_containerRef"></div>
+</div>
 
 @code {
     [Parameter] public string Value { get; set; } = string.Empty;
 
     private ElementReference _containerRef;
     private string _lastValue = string.Empty;
+    private string _term = string.Empty;
+    private int _matchCount;
+    private int _current;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -21,7 +37,44 @@
         {
             _lastValue = Value;
             await JS.InvokeVoidAsync("forge.viewer.setValue", _containerRef, Value);
+            // A new body drops the old highlights; re-run the current search against it.
+            if (!string.IsNullOrEmpty(_term)) await RunSearchAsync();
         }
+    }
+
+    private async Task OnTermInput(ChangeEventArgs e)
+    {
+        _term = e.Value?.ToString() ?? string.Empty;
+        await RunSearchAsync();
+    }
+
+    // Highlights matches and jumps to the first one.
+    private async Task RunSearchAsync()
+    {
+        _matchCount = await JS.InvokeAsync<int>("forge.viewer.find", _containerRef, _term);
+        _current = _matchCount > 0
+            ? await JS.InvokeAsync<int>("forge.viewer.step", _containerRef, true)
+            : 0;
+    }
+
+    private async Task StepAsync(bool forward)
+    {
+        if (_matchCount == 0) return;
+        _current = await JS.InvokeAsync<int>("forge.viewer.step", _containerRef, forward);
+    }
+
+    private async Task OnSearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await StepAsync(!e.ShiftKey); // Enter = next, Shift+Enter = previous
+        else if (e.Key == "Escape") await ClearSearchAsync();
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        _term = string.Empty;
+        _matchCount = 0;
+        _current = 0;
+        await JS.InvokeVoidAsync("forge.viewer.find", _containerRef, string.Empty);
     }
 
     public async ValueTask DisposeAsync()

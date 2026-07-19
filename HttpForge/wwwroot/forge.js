@@ -239,6 +239,50 @@ window.forge.viewer = {
         if (inst) inst.cm.setValue(value || '');
     },
 
+    // Highlights every case-insensitive occurrence of `term` and returns the match count.
+    // Addon-free (posFromIndex + markText) so it doesn't depend on CodeMirror search addons.
+    find(el, term) {
+        const inst = this._instances.get(el);
+        if (!inst) return 0;
+        const cm = inst.cm;
+
+        (inst.marks || []).forEach(m => m.clear());
+        inst.marks = [];
+        inst.matches = [];
+        inst.current = -1;
+        if (inst.currentMark) { inst.currentMark.clear(); inst.currentMark = null; }
+
+        if (!term) { cm.refresh(); return 0; }
+
+        const hay = cm.getValue().toLowerCase();
+        const needle = term.toLowerCase();
+        let idx = hay.indexOf(needle);
+        while (idx !== -1) {
+            const from = cm.posFromIndex(idx);
+            const to = cm.posFromIndex(idx + needle.length);
+            inst.marks.push(cm.markText(from, to, { className: 'cm-search-hl' }));
+            inst.matches.push({ from, to });
+            idx = hay.indexOf(needle, idx + needle.length);
+        }
+        return inst.matches.length;
+    },
+
+    // Moves to the next/previous match, scrolls it into view, and returns its 1-based index
+    // (0 when there are no matches).
+    step(el, forward) {
+        const inst = this._instances.get(el);
+        if (!inst || !inst.matches || inst.matches.length === 0) return 0;
+        const cm = inst.cm;
+        const n = inst.matches.length;
+        inst.current = ((inst.current + (forward ? 1 : -1)) % n + n) % n;
+        const m = inst.matches[inst.current];
+
+        if (inst.currentMark) inst.currentMark.clear();
+        inst.currentMark = cm.markText(m.from, m.to, { className: 'cm-search-current' });
+        cm.scrollIntoView({ from: m.from, to: m.to }, 40);
+        return inst.current + 1;
+    },
+
     dispose(el) {
         const inst = this._instances.get(el);
         if (!inst) return;

@@ -312,3 +312,8 @@ h1:focus {
     background: var(--bg-btn-hover); color: var(--text-primary);
 }
 .hf-modal button:hover { background: var(--border-input); }
+
+/* Response-body search highlights (CodeMirror marks live outside Blazor's scoped CSS,
+   so these are global). */
+.cm-search-hl { background: rgba(255, 213, 0, 0.28); }
+.cm-search-current { background: var(--accent-orange, #d8772b); color: #fff; }
