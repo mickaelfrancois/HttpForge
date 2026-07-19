@@ -65,7 +65,36 @@
 }
 
 .request-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 1rem 0;
+}
+
+.env-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    border-radius: 999px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.7rem;
+    white-space: nowrap;
+}
+
+.env-badge:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+}
+
+.env-badge-scope {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
 .request-name-input {

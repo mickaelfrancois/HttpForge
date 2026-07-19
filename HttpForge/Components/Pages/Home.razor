@@ -69,6 +69,11 @@ else
         <div class="request-name-row">
             <input class="request-name-input" value="@tab.Draft.Name"
                    @oninput="OnNameInput" placeholder="Request name" />
+            <button class="env-badge" title="Environnement actif — cliquer pour gérer les variables globales"
+                    @onclick="() => State.RequestOpenEnvEditor()">
+                <span class="env-badge-scope">🌐 @(_globalSubset?.Name ?? "Base")</span>
+                <span class="env-badge-scope">📦 @(_collectionSubset?.Name ?? "Base")</span>
+            </button>
         </div>
         <div class="url-bar">
             <select class="method-select method-@tab.Draft.Method.ToString().ToLower()"
