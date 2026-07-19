@@ -1,6 +1,65 @@
-.json-viewer-wrap {
-    width: 100%;
+.json-viewer {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+    min-height: 0;
+}
+
+.jv-search {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-bottom: 0.35rem;
+}
+
+.jv-search-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.jv-search-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.jv-search-count {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    min-width: 3rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.jv-search-btn {
+    background: none;
+    border: 1px solid var(--border-input);
+    color: var(--text-dim);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.4rem;
+}
+
+.jv-search-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+}
+
+.jv-search-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.json-viewer-wrap {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
 }
 
 .json-viewer-wrap :deep(.CodeMirror) {
