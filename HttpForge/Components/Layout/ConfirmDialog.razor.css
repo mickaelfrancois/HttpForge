@@ -1,0 +1,11 @@
+.confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+/* The global `.hf-modal button` rule sets align-self: flex-start and a top margin; keep the
+   buttons on one row and neutralize that stray margin inside this actions row. */
+.confirm-actions button {
+    margin-top: 0;
+}
