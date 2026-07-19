@@ -41,7 +41,7 @@ public class CollectionSettingsTests : BunitContext
     // Adds a sub-set through the PromptDialog (replaces the old native prompt()).
     private void CreateSubsetViaPrompt(IRenderedComponent<CollectionSettings> cut, string name)
     {
-        cut.Find("button[title='New sub-set']").Click();
+        cut.Find("button[title='Nouveau sous-ensemble']").Click();
         cut.WaitForElement(".prompt-input").Input(name);
         cut.Find(".prompt-primary").Click();
         cut.WaitForState(() =>
@@ -57,7 +57,7 @@ public class CollectionSettingsTests : BunitContext
         var cut = RenderTab();
 
         cut.FindAll("button.link-btn")
-            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Single(b => b.TextContent.Contains("ajouter une variable de collection"))
             .Click();
 
         using var db = Db();
@@ -73,10 +73,13 @@ public class CollectionSettingsTests : BunitContext
     {
         var cut = RenderTab();
         cut.FindAll("button.link-btn")
-            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Single(b => b.TextContent.Contains("ajouter une variable de collection"))
             .Click();
 
-        cut.Find(".var-row input").Input("token");
+        // The editor persists on blur (mirrors KeyValueGrid), not per keystroke.
+        var keyInput = cut.Find(".var-row input");
+        keyInput.Input("token");
+        keyInput.Blur();
 
         using var db = Db();
         var entry = db.CollectionVariableEntries.Single();
@@ -88,10 +91,10 @@ public class CollectionSettingsTests : BunitContext
     {
         var cut = RenderTab();
         cut.FindAll("button.link-btn")
-            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Single(b => b.TextContent.Contains("ajouter une variable de collection"))
             .Click();
 
-        cut.Find("button[title='Mark as secret']").Click();
+        cut.Find("button[title='Marquer comme secret']").Click();
 
         using var db = Db();
         Assert.True(db.CollectionVariableEntries.Single().IsSecret);
@@ -102,10 +105,12 @@ public class CollectionSettingsTests : BunitContext
     {
         var cut = RenderTab();
         cut.FindAll("button.link-btn")
-            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Single(b => b.TextContent.Contains("ajouter une variable de collection"))
             .Click();
 
-        cut.Find(".var-row input[placeholder='value']").Input("secret123");
+        var valueInput = cut.Find(".var-row input[placeholder='valeur']");
+        valueInput.Input("secret123");
+        valueInput.Blur();
 
         using var db = Db();
         Assert.Equal("secret123", db.CollectionVariableEntries.Single().Value);
@@ -116,7 +121,7 @@ public class CollectionSettingsTests : BunitContext
     {
         var cut = RenderTab();
         cut.FindAll("button.link-btn")
-            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Single(b => b.TextContent.Contains("ajouter une variable de collection"))
             .Click();
 
         // The ✕ delete button is the last button in the row.
@@ -136,7 +141,7 @@ public class CollectionSettingsTests : BunitContext
     {
         var cut = RenderTab();
         cut.FindAll("button.link-btn")
-            .Single(b => b.TextContent.Contains("add collection variable"))
+            .Single(b => b.TextContent.Contains("ajouter une variable de collection"))
             .Click();
 
         cut.Find(".var-row").QuerySelectorAll("button").Last().Click();
@@ -167,7 +172,7 @@ public class CollectionSettingsTests : BunitContext
         var cut = RenderTab();
         CreateSubsetViaPrompt(cut, "Staging");
 
-        cut.Find(".cs-row select").Change("");
+        cut.Find(".vse-subset-row select").Change("");
 
         using var db = Db();
         Assert.Null(db.Collections.Single(c => c.Id == _collectionId).ActiveCollectionVariableSetId);
@@ -179,7 +184,7 @@ public class CollectionSettingsTests : BunitContext
         var cut = RenderTab();
         CreateSubsetViaPrompt(cut, "Staging");
 
-        cut.WaitForElement("button[title='Delete sub-set']").Click();
+        cut.WaitForElement("button[title='Supprimer le sous-ensemble']").Click();
         cut.WaitForElement(".confirm-actions button.btn-danger").Click();
 
         cut.WaitForAssertion(() =>

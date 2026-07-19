@@ -1,6 +1,6 @@
 namespace HttpForge.Data.Entities;
 
-public class CollectionVariableEntry
+public class CollectionVariableEntry : IVariableEntry
 {
     public int Id { get; set; }
     public int CollectionVariableSetId { get; set; }

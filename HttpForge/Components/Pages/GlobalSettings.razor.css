@@ -1,0 +1,43 @@
+.cs-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+    gap: 0.75rem;
+}
+
+.cs-empty {
+    padding: 2rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.cs-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cs-title-icon {
+    font-size: 1.1rem;
+}
+
+.cs-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.gs-hint {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+}
+
+.cs-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 720px;
+}

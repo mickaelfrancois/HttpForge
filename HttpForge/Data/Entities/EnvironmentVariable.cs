@@ -1,6 +1,6 @@
 namespace HttpForge.Data.Entities;
 
-public class EnvironmentVariable
+public class EnvironmentVariable : IVariableEntry
 {
     public int Id { get; set; }
     public int AppEnvironmentId { get; set; }

@@ -14,86 +14,19 @@
 </div>
 
 <div class="env-block">
-    <label>Global variables</label>
+    <label>Variables globales</label>
     <div class="env-row">
-        <select value="@(State.SelectedEnvironmentId?.ToString() ?? "")" @onchange="OnSubsetChanged">
-            <option value="">— base only —</option>
+        <select value="@(State.SelectedEnvironmentId?.ToString() ?? "")" @onchange="OnSubsetChanged"
+                title="Sous-ensemble global actif — commun à toutes les requêtes">
+            <option value="">Base seule</option>
             @foreach (var s in _globalSubsets)
             {
                 <option value="@s.Id">@s.Name</option>
             }
         </select>
-        <button class="icon-btn" title="Manage global variables" @onclick="ToggleEnvEditor">@(_showEnvEditor ? "✕" : "⚙")</button>
+        <button class="icon-btn" title="Gérer les variables globales"
+                @onclick="() => Tabs.OpenGlobalSettingsTab()">⚙</button>
     </div>
-    @if (_showEnvEditor)
-    {
-        <div class="env-editor">
-            <div class="env-editor-header" title="Fermer le panneau" @onclick="ToggleEnvEditor">
-                <span>Variables globales</span>
-                <span class="close-x">✕</span>
-            </div>
-            @if (_globalBase is not null)
-            {
-                <div class="var-list">
-                    <div class="var-list-header"><span>Base</span></div>
-                    @foreach (var v in _globalBase.Variables)
-                    {
-                        var masked = v.IsSecret && !_revealed.Contains(v.Id);
-                        <div class="var-row">
-                            <input placeholder="key" value="@v.Key" @oninput="e => OnVarKeyChanged(v, e)" />
-                            <input placeholder="value" type="@(masked ? "password" : "text")"
-                                   value="@v.Value" @oninput="e => OnVarValueChanged(v, e)" />
-                            @if (v.IsSecret)
-                            {
-                                <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
-                                        @onclick="() => ToggleReveal(v)">@(masked ? "👁" : "🚫")</button>
-                            }
-                            <button class="icon-btn @(v.IsSecret ? "active" : "")"
-                                    title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
-                                    @onclick="() => ToggleSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
-                            <button class="icon-btn" @onclick="() => RemoveVar(v)">✕</button>
-                        </div>
-                    }
-                    <button class="link-btn" @onclick="AddBaseVar">+ add base variable</button>
-                </div>
-            }
-            <div class="var-list" style="margin-top:0.5rem">
-                <div class="var-list-header"><span>Sub-sets</span></div>
-                <div class="env-actions">
-                    <input placeholder="New sub-set name" @bind="_newEnvName" @bind:event="oninput" />
-                    <button @onclick="AddSubset" disabled="@string.IsNullOrWhiteSpace(_newEnvName)">Add</button>
-                </div>
-                @foreach (var s in _globalSubsets)
-                {
-                    <div class="var-list" style="margin-top:0.3rem">
-                        <div class="var-list-header">
-                            <span>@s.Name</span>
-                            <button class="link-btn" @onclick="() => DeleteSubset(s)">delete</button>
-                        </div>
-                        @foreach (var v in s.Variables)
-                        {
-                            var masked = v.IsSecret && !_revealed.Contains(v.Id);
-                            <div class="var-row">
-                                <input placeholder="key" value="@v.Key" @oninput="e => OnVarKeyChanged(v, e)" />
-                                <input placeholder="value" type="@(masked ? "password" : "text")"
-                                       value="@v.Value" @oninput="e => OnVarValueChanged(v, e)" />
-                                @if (v.IsSecret)
-                                {
-                                    <button class="icon-btn" title="@(masked ? "Reveal" : "Hide")"
-                                            @onclick="() => ToggleReveal(v)">@(masked ? "👁" : "🚫")</button>
-                                }
-                                <button class="icon-btn @(v.IsSecret ? "active" : "")"
-                                        title="@(v.IsSecret ? "Unmark as secret" : "Mark as secret")"
-                                        @onclick="() => ToggleSecret(v)">@(v.IsSecret ? "🔒" : "🔓")</button>
-                                <button class="icon-btn" @onclick="() => RemoveVar(v)">✕</button>
-                            </div>
-                        }
-                        <button class="link-btn" @onclick="() => AddSubsetVar(s)">+ add variable</button>
-                    </div>
-                }
-            </div>
-        </div>
-    }
 </div>
 
 <div class="section-title">
@@ -298,7 +231,6 @@
 @code {
     private List<Collection> _collections = new();
     private List<CollectionFolder> _allFolders = [];
-    private AppEnvironment? _globalBase;
     private List<AppEnvironment> _globalSubsets = new();
     private HashSet<int> _expanded = new();
     private string _filterText = string.Empty;
@@ -313,9 +245,6 @@
     private string? _refreshError;
     private string _refreshInitialUrl = string.Empty;
     private int? _refreshingCollectionId;
-    private bool _showEnvEditor;
-    private string _newEnvName = string.Empty;
-    private HashSet<int> _revealed = new();
     private string? _importStatus;
     private bool _disposed;
     private int? _hoveredCollectionId;
@@ -376,12 +305,8 @@
         InvokeAsync(StateHasChanged);
     }
 
-    // Opens the global variables editor when the workspace env badge is clicked.
-    private void OnOpenEnvEditorRequested()
-    {
-        _showEnvEditor = true;
-        InvokeAsync(StateHasChanged);
-    }
+    // Opens the global variables tab when the workspace env badge is clicked.
+    private void OnOpenEnvEditorRequested() => Tabs.OpenGlobalSettingsTab();
 
     [JSInvokable]
     public async Task OnDrop(string drag, string drop)
@@ -514,12 +439,10 @@
             .ToListAsync();
 
         _allFolders = await db.CollectionFolders.ToListAsync();
-        var envs = await db.Environments
-            .Include(e => e.Variables)
+        _globalSubsets = await db.Environments
+            .Where(e => !e.IsBase)
             .OrderBy(e => e.Name)
             .ToListAsync();
-        _globalBase = envs.FirstOrDefault(e => e.IsBase);
-        _globalSubsets = envs.Where(e => !e.IsBase).ToList();
     }
 
     private void ToggleCollection(int id)
@@ -943,104 +866,6 @@
         State.NotifyChanged();
     }
 
-    private void ToggleEnvEditor() => _showEnvEditor = !_showEnvEditor;
-
-    private async Task AddSubset()
-    {
-        if (string.IsNullOrWhiteSpace(_newEnvName)) return;
-        using var db = await DbFactory.CreateDbContextAsync();
-        var env = new AppEnvironment { Name = _newEnvName.Trim(), IsBase = false };
-        db.Environments.Add(env);
-        await db.SaveChangesAsync();
-        _newEnvName = string.Empty;
-        State.SelectedEnvironmentId = env.Id;
-        var settings = await db.Settings.FirstAsync(s => s.Id == 1);
-        settings.ActiveGlobalSubsetId = env.Id;
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
-        await ReloadAsync();
-    }
-
-    private async Task DeleteSubset(AppEnvironment s)
-    {
-        var msg = s.Variables.Count > 0
-            ? $"Supprimer le sous-ensemble « {s.Name} » et ses {s.Variables.Count} variable(s) ?"
-            : $"Supprimer le sous-ensemble « {s.Name} » ?";
-        if (!await _confirm.AskAsync(msg)) return;
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == s.Id));
-        var wasActive = State.SelectedEnvironmentId == s.Id;
-        if (wasActive)
-        {
-            var settings = await db.Settings.FirstAsync(x => x.Id == 1);
-            settings.ActiveGlobalSubsetId = null;
-        }
-        await db.SaveChangesAsync();
-        if (wasActive) State.SelectedEnvironmentId = null;
-        State.NotifyChanged();
-        await ReloadAsync();
-    }
-
-    private async Task AddBaseVar()
-    {
-        if (_globalBase is null) return;
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.EnvironmentVariables.Add(new EnvironmentVariable { AppEnvironmentId = _globalBase.Id });
-        await db.SaveChangesAsync();
-        await ReloadAsync();
-    }
-
-    private async Task AddSubsetVar(AppEnvironment s)
-    {
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.EnvironmentVariables.Add(new EnvironmentVariable { AppEnvironmentId = s.Id });
-        await db.SaveChangesAsync();
-        await ReloadAsync();
-    }
-
-    private async Task RemoveVar(EnvironmentVariable v)
-    {
-        var label = string.IsNullOrWhiteSpace(v.Key) ? "(vide)" : v.Key;
-        if (!await _confirm.AskAsync($"Supprimer la variable « {label} » ?")) return;
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.EnvironmentVariables.Remove(await db.EnvironmentVariables.FirstAsync(x => x.Id == v.Id));
-        await db.SaveChangesAsync();
-        await ReloadAsync();
-    }
-
-    private async Task OnVarKeyChanged(EnvironmentVariable v, ChangeEventArgs e)
-    {
-        v.Key = e.Value?.ToString() ?? "";
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.EnvironmentVariables.Update(v);
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
-    }
-
-    private async Task OnVarValueChanged(EnvironmentVariable v, ChangeEventArgs e)
-    {
-        v.Value = e.Value?.ToString() ?? "";
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.EnvironmentVariables.Update(v);
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
-    }
-
-    private async Task ToggleSecret(EnvironmentVariable v)
-    {
-        v.IsSecret = !v.IsSecret;
-        if (!v.IsSecret) _revealed.Remove(v.Id);
-        using var db = await DbFactory.CreateDbContextAsync();
-        db.EnvironmentVariables.Update(v);
-        await db.SaveChangesAsync();
-        State.NotifyChanged();
-    }
-
-    private void ToggleReveal(EnvironmentVariable v)
-    {
-        if (!_revealed.Add(v.Id)) _revealed.Remove(v.Id);
-        StateHasChanged();
-    }
 
     private async Task OnCollSubsetChanged(Collection c, ChangeEventArgs e)
     {

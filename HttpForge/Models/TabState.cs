@@ -7,7 +7,7 @@ namespace HttpForge.Models;
 // CollectionSettings tab is keyed by CollectionId. A single canonical string Key
 // (see below) unifies iteration/activation/closing across both kinds without an
 // integer-space collision between the two id sources.
-public enum TabKind { Request, CollectionSettings }
+public enum TabKind { Request, CollectionSettings, GlobalSettings }
 
 public class TabState
 {
@@ -50,8 +50,13 @@ public class TabState
     // reused by TabManagerService so a request id and a collection id never collide.
     public static string RequestKey(int requestId) => $"request:{requestId}";
     public static string CollectionKey(int collectionId) => $"collection:{collectionId}";
+    // Singleton: there is exactly one global-variables tab across the whole workspace.
+    public const string GlobalSettingsKey = "global";
 
-    public string Key => Kind == TabKind.CollectionSettings
-        ? CollectionKey(CollectionId)
-        : RequestKey(RequestId);
+    public string Key => Kind switch
+    {
+        TabKind.GlobalSettings => GlobalSettingsKey,
+        TabKind.CollectionSettings => CollectionKey(CollectionId),
+        _ => RequestKey(RequestId),
+    };
 }

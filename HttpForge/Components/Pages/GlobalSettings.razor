@@ -1,0 +1,195 @@
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject AppState State
+@implements IDisposable
+
+<div class="cs-root">
+    <div class="cs-title-row">
+        <span class="cs-title-icon">🌐</span>
+        <h2 class="cs-title">Variables globales</h2>
+    </div>
+    <div class="gs-hint">Communes à toutes les requêtes de l'espace de travail.</div>
+
+    <div class="cs-body">
+        @if (_globalBase is null)
+        {
+            <div class="cs-empty">Chargement…</div>
+        }
+        else
+        {
+            <VariableSetEditor BaseEntries="_globalBase.Variables"
+                               OnAddBaseEntry="AddBaseVar"
+                               Subsets="_subsetOptions"
+                               ActiveSubsetId="State.SelectedEnvironmentId"
+                               OnActiveSubsetChanged="OnActiveSubsetChanged"
+                               SubsetEntries="ActiveSubsetEntries"
+                               OnAddSubset="AddSubset"
+                               OnDeleteSubset="DeleteSubset"
+                               OnAddSubsetEntry="AddSubsetVar"
+                               OnEntryChanged="SaveEntry"
+                               OnToggleSecret="ToggleSecret"
+                               OnRemoveEntry="RemoveVar"
+                               SubsetLabel="Sous-ensemble" />
+        }
+    </div>
+</div>
+
+<ConfirmDialog Visible="_confirm.Visible"
+               Message="@_confirm.Message"
+               ConfirmLabel="@_confirm.ConfirmLabel"
+               Danger="_confirm.Danger"
+               OnConfirm="_confirm.Confirm"
+               OnCancel="_confirm.Cancel" />
+
+<PromptDialog Visible="_prompt.Visible"
+              Title="@_prompt.Title"
+              Message="@_prompt.Message"
+              ConfirmLabel="@_prompt.ConfirmLabel"
+              Placeholder="@_prompt.Placeholder"
+              OnConfirm="_prompt.Submit"
+              OnCancel="_prompt.Cancel" />
+
+@code {
+    private AppEnvironment? _globalBase;
+    private List<AppEnvironment> _globalSubsets = new();
+    private IReadOnlyList<VariableSubsetOption> _subsetOptions = [];
+    private readonly ConfirmState _confirm = new();
+    private readonly PromptState _prompt = new();
+
+    // Entries of the active sub-set (empty when "— aucun —" is selected).
+    private IReadOnlyList<IVariableEntry> ActiveSubsetEntries =>
+        _globalSubsets.FirstOrDefault(e => e.Id == State.SelectedEnvironmentId)?.Variables ?? [];
+
+    protected override void OnInitialized()
+    {
+        State.OnChange += OnStateChanged;
+        _confirm.OnChange = () => InvokeAsync(StateHasChanged);
+        _prompt.OnChange = () => InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+
+    private async void OnStateChanged()
+    {
+        try
+        {
+            await ReloadAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[HttpForge] GlobalSettings reload error: {ex.Message}");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var envs = await db.Environments
+            .Include(e => e.Variables)
+            .OrderBy(e => e.Name)
+            .ToListAsync();
+        _globalBase = envs.FirstOrDefault(e => e.IsBase);
+        _globalSubsets = envs.Where(e => !e.IsBase).ToList();
+        _subsetOptions = _globalSubsets.Select(e => new VariableSubsetOption(e.Id, e.Name)).ToList();
+    }
+
+    // ── Active sub-set selection (persisted on the singleton settings row) ────────
+
+    private async Task OnActiveSubsetChanged(int? id)
+    {
+        State.SelectedEnvironmentId = id;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.FirstAsync(s => s.Id == 1);
+        settings.ActiveGlobalSubsetId = id;
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    // ── Variable rows ─────────────────────────────────────────────────────────────
+
+    private async Task AddBaseVar()
+    {
+        if (_globalBase is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Add(new EnvironmentVariable { AppEnvironmentId = _globalBase.Id });
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task AddSubsetVar()
+    {
+        if (State.SelectedEnvironmentId is not int setId) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Add(new EnvironmentVariable { AppEnvironmentId = setId });
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task SaveEntry(IVariableEntry v)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Update((EnvironmentVariable)v);
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task ToggleSecret(IVariableEntry v)
+    {
+        v.IsSecret = !v.IsSecret;
+        await SaveEntry(v);
+    }
+
+    private async Task RemoveVar(IVariableEntry v)
+    {
+        var label = string.IsNullOrWhiteSpace(v.Key) ? "(vide)" : v.Key;
+        if (!await _confirm.AskAsync($"Supprimer la variable « {label} » ?")) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.EnvironmentVariables.Remove(await db.EnvironmentVariables.FirstAsync(x => x.Id == v.Id));
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    // ── Sub-sets ──────────────────────────────────────────────────────────────────
+
+    private async Task AddSubset()
+    {
+        var name = await _prompt.AskAsync("Nom du sous-ensemble :", placeholder: "ex. Staging");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var env = new AppEnvironment { Name = name.Trim(), IsBase = false };
+        db.Environments.Add(env);
+        await db.SaveChangesAsync();
+        // Newly created sub-set becomes the active one, matching the collection flow.
+        State.SelectedEnvironmentId = env.Id;
+        var settings = await db.Settings.FirstAsync(s => s.Id == 1);
+        settings.ActiveGlobalSubsetId = env.Id;
+        await db.SaveChangesAsync();
+        State.NotifyChanged();
+    }
+
+    private async Task DeleteSubset(int subsetId)
+    {
+        var target = _globalSubsets.FirstOrDefault(e => e.Id == subsetId);
+        if (target is null) return;
+        var msg = target.Variables.Count > 0
+            ? $"Supprimer le sous-ensemble « {target.Name} » et ses {target.Variables.Count} variable(s) ?"
+            : $"Supprimer le sous-ensemble « {target.Name} » ?";
+        if (!await _confirm.AskAsync(msg)) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Environments.Remove(await db.Environments.FirstAsync(e => e.Id == subsetId));
+        var wasActive = State.SelectedEnvironmentId == subsetId;
+        if (wasActive)
+        {
+            var settings = await db.Settings.FirstAsync(x => x.Id == 1);
+            settings.ActiveGlobalSubsetId = null;
+        }
+        await db.SaveChangesAsync();
+        if (wasActive) State.SelectedEnvironmentId = null;
+        State.NotifyChanged();
+    }
+}
