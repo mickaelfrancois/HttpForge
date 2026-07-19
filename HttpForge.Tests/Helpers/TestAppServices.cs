@@ -27,6 +27,7 @@ internal static class TestAppServices
         services.AddSingleton(new RequestAutoSaver(TimeProvider.System));
         services.AddSingleton<InsomniaImporter>();
         services.AddSingleton<OpenApiImporter>();
+        services.AddSingleton<CurlService>();
         services.AddHttpClient();
         services.AddSingleton<TabManagerService>();
     }

@@ -9,7 +9,9 @@
 @inject RequestAutoSaver AutoSaver
 @inject RequestChangeNotifier Notifier
 @inject TabManagerService Tabs
+@inject CurlService Curl
 @using HttpForge.Models
+@using HttpForge.Services
 @implements IAsyncDisposable
 
 <PageTitle>HttpForge</PageTitle>
@@ -41,6 +43,18 @@ else
             <button @onclick="OnDismissToast">Ignorer</button>
         </div>
     }
+
+    @if (_curlNotice is not null)
+    {
+        <div class="curl-notice">
+            <span>@_curlNotice</span>
+            <button title="Fermer" @onclick="() => _curlNotice = null">✕</button>
+        </div>
+    }
+
+    <CurlImportDialog Visible="_showCurlImport"
+                      OnImport="ImportCurlAsync"
+                      OnCancel="() => { _showCurlImport = false; }" />
 
     @* Keyed on the Draft *instance*: switching tabs (different draft) or reloading from
        server (replaced draft) recreates the whole subtree, so CodeMirror editors are
@@ -76,6 +90,10 @@ else
             {
                 <button class="save-btn" @onclick="() => SaveDraftAsync(false)">Save</button>
             }
+            <button class="curl-btn" title="Copier la requête comme commande cURL"
+                    @onclick="CopyAsCurlAsync">⎘ cURL</button>
+            <button class="curl-btn" title="Remplacer la requête depuis une commande cURL"
+                    @onclick="() => _showCurlImport = true">⇤ cURL</button>
             <span class="autosave-status">
                 @if (tab.IsAutoSaving)
                 {
@@ -443,6 +461,10 @@ else
     private bool _showConflictModal;
     private DateTime? _conflictAt;
     private string? _reloadToast;
+
+    // cURL import/export UI state.
+    private bool _showCurlImport;
+    private string? _curlNotice;
 
     private Action? _tabsOnChange;
     private Action<int>? _tabRemoved;
@@ -985,6 +1007,106 @@ else
     private void CancelSend()
     {
         Active?.SendCts?.Cancel();
+    }
+
+    // ── cURL import / export ───────────────────────────────────────────────────
+
+    // Replaces the active draft with a fresh one built from the pasted cURL command.
+    // A NEW draft instance is assigned (not mutated) so the @key="tab.Draft" subtree —
+    // including the CodeMirror body editor — re-initializes with the imported content.
+    private async Task ImportCurlAsync(string curl)
+    {
+        _showCurlImport = false;
+        if (Active is not { Kind: TabKind.Request } tab) return;
+
+        var parsed = Curl.Parse(curl);
+        var old = tab.Draft;
+        var draft = new RequestDraft
+        {
+            RequestId = old.RequestId,
+            LoadedAt = old.LoadedAt,
+            Name = old.Name,
+            Method = parsed.Method,
+            Url = parsed.Url,
+            BodyKind = parsed.BodyKind,
+            BodyContent = parsed.Body,
+            // Script and its trust flag belong to the request, not the cURL — keep them.
+            PostScript = old.PostScript,
+            PostScriptTrusted = old.PostScriptTrusted,
+            IgnoreTlsErrors = old.IgnoreTlsErrors || parsed.IgnoreTlsErrors,
+            Headers = parsed.Headers
+                .Select(h => new HeaderItem { HttpRequestItemId = old.RequestId, Key = h.Key, Value = h.Value, Enabled = true })
+                .ToList(),
+            // The parsed URL keeps its query string inline, so start from no separate params
+            // (avoids duplicating the query when the request is sent).
+            QueryParams = [],
+            FormFields = parsed.FormFields
+                .Select(f => new FormFieldItem { HttpRequestItemId = old.RequestId, Key = f.Key, Value = f.Value, Enabled = true })
+                .ToList(),
+            Variables = old.Variables.ToList()
+        };
+
+        tab.Draft = draft;
+        tab.Method = parsed.Method.ToString();
+        MarkDirtyAndSchedule(tab);
+
+        _curlNotice = parsed.Warnings.Count > 0
+            ? "cURL importé — avertissements : " + string.Join(" ; ", parsed.Warnings)
+            : "cURL importé.";
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Builds a cURL command from the active draft and copies it to the clipboard. Uses the
+    // resolved URL and the request/collection header merge (mirroring RequestExecutor);
+    // VariablePreview.Resolve keeps secret variables masked as {{name}} so they never leak.
+    private async Task CopyAsCurlAsync()
+    {
+        if (Active is not { Kind: TabKind.Request } tab) return;
+        var d = tab.Draft;
+
+        var url = VariablePreview.BuildFullUrl(d.Url, d.QueryParams, _resolvedVariables);
+
+        var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var order = new List<string>();
+        void Put(string key, string value)
+        {
+            if (!merged.ContainsKey(key)) order.Add(key);
+            merged[key] = value;
+        }
+        foreach (var h in _collectionDefaultHeaders.Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Key)))
+            Put(h.Key, h.Value);
+        foreach (var h in d.Headers.Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Key)))
+            Put(h.Key, h.Value);
+
+        var headers = order
+            .Select(k => new CurlHeader(
+                VariablePreview.Resolve(k, _resolvedVariables),
+                VariablePreview.Resolve(merged[k], _resolvedVariables)))
+            .ToList();
+
+        var formFields = d.FormFields
+            .Where(f => f.Enabled && !string.IsNullOrWhiteSpace(f.Key))
+            .Select(f => new CurlFormField(
+                VariablePreview.Resolve(f.Key, _resolvedVariables),
+                VariablePreview.Resolve(f.Value, _resolvedVariables)))
+            .ToList();
+
+        var resolvedBody = VariablePreview.Resolve(d.BodyContent, _resolvedVariables);
+        var body = string.IsNullOrEmpty(resolvedBody) ? d.BodyContent : resolvedBody;
+
+        var command = Curl.Build(new CurlExportRequest(d.Method, url, headers, d.BodyKind, body, formFields));
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", command);
+            _curlNotice = "Commande cURL copiée dans le presse-papier.";
+        }
+        catch
+        {
+            _curlNotice = "Copie impossible (presse-papier indisponible).";
+        }
+        await InvokeAsync(StateHasChanged);
     }
 
     // ── Keyboard shortcuts (invoked from forge.shortcuts) ──────────────────────

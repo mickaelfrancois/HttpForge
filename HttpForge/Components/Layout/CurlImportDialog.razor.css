@@ -1,0 +1,84 @@
+.curl-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.curl-dialog {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 6px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    width: min(620px, 92vw);
+    padding: 1.1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.curl-dialog-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.curl-dialog-input {
+    width: 100%;
+    background: var(--bg-input-dark);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.5rem 0.6rem;
+    font-family: 'Consolas', monospace;
+    font-size: 0.82rem;
+    resize: vertical;
+}
+
+.curl-dialog-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.curl-dialog-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.curl-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
+}
+
+.curl-dialog-cancel {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.6rem;
+}
+
+.curl-dialog-cancel:hover {
+    color: var(--text-primary);
+}
+
+.curl-dialog-primary {
+    background: var(--accent-blue);
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.curl-dialog-primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
