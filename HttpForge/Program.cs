@@ -43,6 +43,7 @@ builder.Services.AddScoped<VariableResolver>();
 builder.Services.AddScoped(sp => new RequestExecutor(sp.GetRequiredService<VariableResolver>()));
 builder.Services.AddScoped<InsomniaImporter>();
 builder.Services.AddScoped<OpenApiImporter>();
+builder.Services.AddScoped<CurlService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<ScriptRunner>();

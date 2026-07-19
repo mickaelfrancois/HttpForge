@@ -133,6 +133,49 @@
     color: var(--text-primary);
 }
 
+.curl-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-input);
+    border-radius: 3px;
+    padding: 0.45rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.curl-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.curl-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.4rem 1rem 0;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border-main);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text-dim);
+    font-size: 0.82rem;
+}
+
+.curl-notice button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.curl-notice button:hover {
+    color: var(--text-primary);
+}
+
 .autosave-status {
     color: var(--text-muted);
     font-size: 0.8rem;
