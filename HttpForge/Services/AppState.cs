@@ -22,6 +22,12 @@ public class AppState
 
     public void RequestOpenImport() => OpenImportRequested?.Invoke();
 
+    // Raised when the workspace env badge is clicked, so the sidebar opens its global
+    // variables editor — keeps that editor owned by NavMenu (no duplication).
+    public event Action? OpenEnvEditorRequested;
+
+    public void RequestOpenEnvEditor() => OpenEnvEditorRequested?.Invoke();
+
     public IReadOnlyList<ResolvedVariableEntry> BuildVariables(
         AppEnvironment? globalBase,
         AppEnvironment? globalSubset,

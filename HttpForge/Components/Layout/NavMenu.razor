@@ -331,6 +331,7 @@
     {
         State.OnChange += OnStateChanged;
         State.OpenImportRequested += OnOpenImportRequested;
+        State.OpenEnvEditorRequested += OnOpenEnvEditorRequested;
         _confirm.OnChange = () => InvokeAsync(StateHasChanged);
         await LoadSettingsAsync();
         await ReloadAsync();
@@ -364,6 +365,7 @@
         _disposed = true;
         State.OnChange -= OnStateChanged;
         State.OpenImportRequested -= OnOpenImportRequested;
+        State.OpenEnvEditorRequested -= OnOpenEnvEditorRequested;
         _dndRef?.Dispose();
     }
 
@@ -371,6 +373,13 @@
     private void OnOpenImportRequested()
     {
         _showImportMenu = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // Opens the global variables editor when the workspace env badge is clicked.
+    private void OnOpenEnvEditorRequested()
+    {
+        _showEnvEditor = true;
         InvokeAsync(StateHasChanged);
     }
 

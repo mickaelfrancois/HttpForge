@@ -106,4 +106,16 @@ public class HomeEmptyStateTests : BunitContext
 
         Assert.True(raised);
     }
+
+    [Fact]
+    public void RequestOpenEnvEditor_RaisesEvent()
+    {
+        var state = new AppState();
+        var raised = false;
+        state.OpenEnvEditorRequested += () => raised = true;
+
+        state.RequestOpenEnvEditor();
+
+        Assert.True(raised);
+    }
 }
